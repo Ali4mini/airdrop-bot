@@ -63,7 +63,7 @@ export const Home = () => {
           // If it fails, we keep the taps in unsyncedTaps and try again next loop
         }
       }
-    }, 2000); // Sync every 2 seconds
+    }, 200); // Sync every .2 seconds
 
     return () => clearInterval(interval);
   }, [user]);
