@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
-import { Header } from "./components/Header"; // <--- Import Header
+import { Header } from "./components/Header";
 import { Navigation } from "./components/Navigation";
+import { Background } from "./components/Background"; // <--- Import this
 
 import { Home } from "./pages/Home";
 import { Tasks } from "./pages/Tasks";
@@ -16,13 +17,16 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-black text-white font-sans">
+    // Note: We changed bg-black to bg-transparent here so the background shows through
+    <div className="flex flex-col h-screen bg-transparent text-white font-sans">
+      {/* 0. DYNAMIC BACKGROUND */}
+      <Background />
+
       {/* 1. FIXED HEADER */}
       <Header />
 
-      {/* 2. SCROLLABLE CONTENT AREA */}
-      {/* Added 'pt-24' (padding top) so content isn't hidden behind the fixed Header */}
-      <div className="flex-1 overflow-y-auto pt-24 pb-24 px-4">
+      {/* 2. SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto pt-24 pb-24 px-4 z-10">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />

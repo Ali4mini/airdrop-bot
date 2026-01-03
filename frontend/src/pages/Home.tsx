@@ -37,7 +37,7 @@ export const Home = () => {
         onClick={handleTap}
         onTouchStart={handleTap}
       >
-        <div className="w-64 h-64 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 shadow-[0_0_50px_rgba(234,179,8,0.4)] flex items-center justify-center border-4 border-yellow-200">
+        <div className="w-64 h-64 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 shadow-[0_0_30px_rgba(234,179,8,0.6)] flex items-center justify-center border-4 border-yellow-200">
           <span className="text-6xl">🪙</span>
         </div>
       </motion.div>

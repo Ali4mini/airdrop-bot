@@ -7,15 +7,23 @@
 }
 
 body {
-  /* Prevent pull-to-refresh on mobile */
   overscroll-behavior: none;
-  background-color: #000000;
+  /* CHANGE THIS: Make background transparent so the Background.tsx component shows */
+  background-color: transparent;
   color: white;
-  user-select: none; /* Prevent text selection while tapping */
-  -webkit-tap-highlight-color: transparent; /* Remove blue tap box on mobile */
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Add this to src/index.css if not already there */
+/* Also ensure the root element takes full height */
+#root {
+  min-height: 100vh;
+}
+
+/* Helper for safe areas */
 .pt-safe-top {
   padding-top: env(safe-area-inset-top);
+}
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }

@@ -4,15 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Custom colors for your brand if needed
+        // We define a custom 'gold' if you need it
         gold: "#FFD700",
       },
     },
   },
-  // Add daisyUI
-  plugins: [require("daisyui")],
-  // Config daisyUI
+  plugins: [
+    require("daisyui"), // <--- Make sure this is here
+  ],
   daisyui: {
-    themes: ["black", "dark", "cyberpunk"], // We will use 'black' as default
+    themes: ["black"], // Forces dark mode
   },
 };
