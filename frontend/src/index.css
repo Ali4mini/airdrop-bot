@@ -8,9 +8,14 @@
 
 body {
   /* Prevent pull-to-refresh on mobile */
-  overscroll-behavior: none; 
+  overscroll-behavior: none;
   background-color: #000000;
   color: white;
   user-select: none; /* Prevent text selection while tapping */
   -webkit-tap-highlight-color: transparent; /* Remove blue tap box on mobile */
+}
+
+/* Add this to src/index.css if not already there */
+.pt-safe-top {
+  padding-top: env(safe-area-inset-top);
 }

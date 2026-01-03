@@ -1,15 +1,15 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
+import { Header } from "./components/Header"; // <--- Import Header
 import { Navigation } from "./components/Navigation";
 
-// Import Pages
 import { Home } from "./pages/Home";
 import { Tasks } from "./pages/Tasks";
 import { Friends } from "./pages/Friends";
 
 function AppContent() {
-  const { user, expand } = useTelegram();
+  const { expand } = useTelegram();
 
   useEffect(() => {
     expand();
@@ -17,21 +17,12 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-sans">
-      {/* GLOBAL HEADER */}
-      <div className="navbar bg-base-100 z-10 border-b border-gray-800 pb-safe-top pt-safe-top px-4 min-h-[64px]">
-        <div className="flex-1">
-          <div className="flex flex-col">
-            <span className="text-xs opacity-50">Welcome</span>
-            <span className="font-bold text-lg">{user?.first_name}</span>
-          </div>
-        </div>
-        <div className="flex-none gap-2">
-          <div className="badge badge-warning badge-outline">Level 1</div>
-        </div>
-      </div>
+      {/* 1. FIXED HEADER */}
+      <Header />
 
-      {/* DYNAMIC CONTENT (Routes) */}
-      <div className="flex-1 overflow-hidden flex flex-col relative z-0">
+      {/* 2. SCROLLABLE CONTENT AREA */}
+      {/* Added 'pt-24' (padding top) so content isn't hidden behind the fixed Header */}
+      <div className="flex-1 overflow-y-auto pt-24 pb-24 px-4">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />
@@ -39,7 +30,7 @@ function AppContent() {
         </Routes>
       </div>
 
-      {/* BOTTOM NAVIGATION */}
+      {/* 3. FIXED BOTTOM NAV */}
       <Navigation />
     </div>
   );
