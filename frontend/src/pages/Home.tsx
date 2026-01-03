@@ -14,6 +14,7 @@ export const Home = () => {
     decrementEnergy,
     restoreEnergy,
     setGameState, // We use this to sync with server truth
+    tapValue,
   } = useGameStore();
 
   const { user } = useTelegram();
@@ -89,15 +90,18 @@ export const Home = () => {
       "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
 
     // 2. Update Local Store (Instant Feedback)
-    incrementPoints(1);
-    decrementEnergy(1);
+    incrementPoints();
+    decrementEnergy();
 
     // 3. Accumulate for Server Sync
     unsyncedTaps.current += 1;
 
     // 4. Trigger Animation
     const id = Date.now();
-    setClicks((prev) => [...prev, { id, x: clientX, y: clientY }]);
+    setClicks((prev) => [
+      ...prev,
+      { id, x: clientX, y: clientY, val: tapValue },
+    ]);
     setTimeout(() => {
       setClicks((prev) => prev.filter((c) => c.id !== id));
     }, 1000);
@@ -155,7 +159,7 @@ export const Home = () => {
             transition={{ duration: 0.6 }}
             className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
           >
-            +1
+            +{tapValue}
           </motion.div>
         </div>
       ))}
