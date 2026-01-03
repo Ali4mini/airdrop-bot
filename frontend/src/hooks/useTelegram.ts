@@ -1,5 +1,5 @@
 import WebApp from "@twa-dev/sdk";
-import { User } from "../types"; // <--- Import Type
+import type { User } from "../types"; // <--- Import Type
 
 export function useTelegram() {
   // Try to detect if we are in Telegram

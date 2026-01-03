@@ -1,5 +1,5 @@
 // src/data/mocks.ts
-import { Task, DailyReward, Friend } from "../types";
+import type { Task, DailyReward, Friend } from "../types";
 
 // Endpoint: GET /api/tasks
 export const TASKS_DATA: Task[] = [
