@@ -1,108 +1,111 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 
 export const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Helper function to determine if a tab is active
-  const isActive = (path: string) => location.pathname === path;
+  const tabs = [
+    { id: "tap", path: "/", label: "Tap", icon: <TapIcon /> },
+    { id: "tasks", path: "/tasks", label: "Tasks", icon: <TasksIcon /> },
+    {
+      id: "friends",
+      path: "/friends",
+      label: "Friends",
+      icon: <FriendsIcon />,
+    },
+  ];
 
   return (
-    // Container: Fixed to bottom, full width, dark background with blur
-    <nav className="fixed bottom-0 left-0 w-full z-50 bg-[#121212] border-t border-gray-800 pb-safe-bottom">
-      <div className="flex justify-around items-center h-20 px-2">
-        {/* --- HOME TAB --- */}
-        <button
-          onClick={() => navigate("/")}
-          className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${
-            isActive("/")
-              ? "text-yellow-400"
-              : "text-gray-500 hover:text-gray-300"
-          }`}
-        >
-          {/* Icon */}
-          <div
-            className={`p-1 rounded-xl ${isActive("/") ? "bg-yellow-400/10" : ""}`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill={isActive("/") ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth={isActive("/") ? "0" : "2"}
-              className="w-7 h-7"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
-              />
-            </svg>
-          </div>
-          {/* Label */}
-          <span className="text-xs font-medium mt-1">Tap</span>
-        </button>
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[350px] z-50 px-4">
+      {/* GLASS CAPSULE CONTAINER */}
+      <div className="flex items-center justify-between bg-[#1c1c1e]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-2 shadow-2xl relative">
+        {tabs.map((tab) => {
+          const isActive = location.pathname === tab.path;
 
-        {/* --- TASKS TAB --- */}
-        <button
-          onClick={() => navigate("/tasks")}
-          className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${
-            isActive("/tasks")
-              ? "text-yellow-400"
-              : "text-gray-500 hover:text-gray-300"
-          }`}
-        >
-          <div
-            className={`p-1 rounded-xl ${isActive("/tasks") ? "bg-yellow-400/10" : ""}`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill={isActive("/tasks") ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth={isActive("/tasks") ? "0" : "2"}
-              className="w-7 h-7"
+          return (
+            <button
+              key={tab.id}
+              onClick={() => navigate(tab.path)}
+              className="relative z-10 flex-1 flex flex-col items-center justify-center py-2 min-h-[64px]"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-              />
-            </svg>
-          </div>
-          <span className="text-xs font-medium mt-1">Tasks</span>
-        </button>
+              {/* Active Tab Background Animation (The "Glow") */}
+              {isActive && (
+                <motion.div
+                  layoutId="active-tab"
+                  className="absolute inset-0 bg-gray-700/50 rounded-2xl -z-10"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              )}
 
-        {/* --- FRIENDS TAB --- */}
-        <button
-          onClick={() => navigate("/friends")}
-          className={`flex flex-col items-center justify-center w-full h-full transition-colors duration-200 ${
-            isActive("/friends")
-              ? "text-yellow-400"
-              : "text-gray-500 hover:text-gray-300"
-          }`}
-        >
-          <div
-            className={`p-1 rounded-xl ${isActive("/friends") ? "bg-yellow-400/10" : ""}`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill={isActive("/friends") ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth={isActive("/friends") ? "0" : "2"}
-              className="w-7 h-7"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-              />
-            </svg>
-          </div>
-          <span className="text-xs font-medium mt-1">Friends</span>
-        </button>
+              {/* Icon Container */}
+              <div
+                className={`transition-colors duration-200 ${
+                  isActive ? "text-yellow-400" : "text-gray-500"
+                }`}
+              >
+                {tab.icon}
+              </div>
+
+              {/* Text Label */}
+              <span
+                className={`text-[10px] font-bold mt-1 transition-all duration-200 ${
+                  isActive
+                    ? "text-white opacity-100"
+                    : "text-gray-500 opacity-70"
+                }`}
+              >
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
-    </nav>
+    </div>
   );
 };
+
+// --- SVG ICONS (Clean & Modern) ---
+
+const TapIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="w-6 h-6"
+  >
+    <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.061 1.061l1.59-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.061-1.06l-1.59-1.591a.75.75 0 10-1.061 1.061l1.59 1.59zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+  </svg>
+);
+
+const TasksIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="w-6 h-6"
+  >
+    <path
+      fillRule="evenodd"
+      d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
+
+const FriendsIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="w-6 h-6"
+  >
+    <path
+      fillRule="evenodd"
+      d="M8.25 6.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0zM15.75 9.75a3 3 0 116 0 3 3 0 01-6 0zM2.25 9.75a3 3 0 116 0 3 3 0 01-6 0zM6.31 15.117A6.745 6.745 0 0112 12a6.745 6.745 0 016.709 7.498.75.75 0 01-.372.568A12.696 12.696 0 0112 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 01-.372-.568 6.787 6.787 0 011.019-4.38z"
+      clipRule="evenodd"
+    />
+    <path d="M5.082 14.254a6.741 6.741 0 00-4.562 4.756.75.75 0 00.375.842A12.71 12.71 0 0012 21.75a12.709 12.709 0 007.135-2.223.75.75 0 00-1.07-1.06 6.741 6.741 0 01-6.136-1.849.75.75 0 00-1.125 0 6.741 6.741 0 01-6.136 1.849.75.75 0 00-1.07 1.06c.036.036.071.072.106.108a12.723 12.723 0 00-4.408-3.99z" />
+  </svg>
+);

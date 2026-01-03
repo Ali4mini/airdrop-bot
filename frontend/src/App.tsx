@@ -26,7 +26,7 @@ function AppContent() {
       <Header />
 
       {/* 2. SCROLLABLE CONTENT */}
-      <div className="flex-1 overflow-y-auto pt-24 pb-24 px-4 z-10">
+      <div className="flex-1 overflow-y-auto pt-24 pb-32 px-4 z-10">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />
