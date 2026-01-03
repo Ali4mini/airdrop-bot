@@ -39,7 +39,8 @@ async def login(user: UserData):
         "gameState": {
             "points": int(data.get("points", 0)),
             "energy": int(data.get("energy", 1000)),
-            "level": int(data.get("level", 1))
+            "level": int(data.get("level", 1)),
+            "maxEnergy": 1000  # Explicitly send this field!
         }
     }
 
