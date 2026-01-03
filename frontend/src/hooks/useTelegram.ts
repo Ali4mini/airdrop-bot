@@ -1,4 +1,5 @@
 import WebApp from "@twa-dev/sdk";
+import { User } from "../types"; // <--- Import Type
 
 export function useTelegram() {
   // Try to detect if we are in Telegram
@@ -6,7 +7,7 @@ export function useTelegram() {
   const isTelegram = !!WebApp.initData;
 
   const user = isTelegram
-    ? WebApp.initDataUnsafe.user
+    ? (WebApp.initDataUnsafe.user as User)
     : {
         // Mock User for Chrome Development
         id: 99999999,

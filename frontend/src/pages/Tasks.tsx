@@ -1,58 +1,10 @@
 import { motion } from "framer-motion";
-
-// Mock Data for Tasks
-const TASKS = [
-  {
-    id: 1,
-    title: "Join Telegram Channel",
-    reward: 5000,
-    icon: "✈️",
-    status: "start",
-  },
-  {
-    id: 2,
-    title: "Follow on X (Twitter)",
-    reward: 2500,
-    icon: "🐦",
-    status: "start",
-  },
-  {
-    id: 3,
-    title: "Retweet Pinned Post",
-    reward: 1000,
-    icon: "🔁",
-    status: "pending",
-  },
-  {
-    id: 4,
-    title: "Subscribe to YouTube",
-    reward: 10000,
-    icon: "📺",
-    status: "claimed",
-  },
-  {
-    id: 5,
-    title: "Invite 3 Friends",
-    reward: 25000,
-    icon: "🤝",
-    status: "start",
-  },
-];
-
-const DAILY_REWARDS = [
-  { day: 1, reward: 500, claimed: true },
-  { day: 2, reward: 1000, claimed: true },
-  { day: 3, reward: 2500, claimed: false }, // Current
-  { day: 4, reward: 5000, claimed: false },
-  { day: 5, reward: 15000, claimed: false },
-  { day: 6, reward: 25000, claimed: false },
-  { day: 7, reward: 100000, claimed: false }, // Big Prize
-];
+import { TASKS_DATA, DAILY_REWARDS_DATA } from "../data/mocks"; // <--- Import Data
+// Note: In a real app, you would fetch this data in a useEffect
 
 export const Tasks = () => {
   return (
     <div className="flex-1 pb-20 pt-6">
-      {/* 1. HERO SECTION (Motivate the user) */}
       <div className="flex flex-col items-center mb-8">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
@@ -69,7 +21,7 @@ export const Tasks = () => {
         </p>
       </div>
 
-      {/* 2. DAILY REWARDS (Horizontal Scroll) */}
+      {/* 2. DAILY REWARDS */}
       <div className="mb-8">
         <div className="flex justify-between items-center px-4 mb-3">
           <h2 className="font-bold text-lg">Daily Rewards</h2>
@@ -78,18 +30,18 @@ export const Tasks = () => {
           </span>
         </div>
 
-        {/* Scrollable Container */}
         <div className="flex gap-2 overflow-x-auto px-4 pb-4 no-scrollbar">
-          {DAILY_REWARDS.map((day) => {
+          {DAILY_REWARDS_DATA.map((day) => {
+            // Logic to determine active day (mock logic)
             const isCurrent =
-              !day.claimed && DAILY_REWARDS[day.day - 2]?.claimed; // Simple logic for demo
+              !day.isClaimed && DAILY_REWARDS_DATA[day.day - 2]?.isClaimed;
 
             return (
               <div
                 key={day.day}
                 className={`flex-shrink-0 w-20 h-28 rounded-xl flex flex-col items-center justify-center gap-1 border relative overflow-hidden transition-all
                   ${
-                    day.claimed
+                    day.isClaimed
                       ? "bg-green-500/20 border-green-500/50"
                       : isCurrent
                         ? "bg-gradient-to-b from-yellow-600/20 to-yellow-900/20 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
@@ -102,13 +54,11 @@ export const Tasks = () => {
                 </span>
                 <span className="text-2xl">{day.day === 7 ? "🎁" : "🪙"}</span>
                 <span
-                  className={`text-[10px] font-bold ${day.claimed ? "text-green-400" : "text-white"}`}
+                  className={`text-[10px] font-bold ${day.isClaimed ? "text-green-400" : "text-white"}`}
                 >
                   {day.reward >= 1000 ? `${day.reward / 1000}K` : day.reward}
                 </span>
-
-                {/* Status Indicator */}
-                {day.claimed && (
+                {day.isClaimed && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                     <span className="text-green-400 text-xl font-bold">✓</span>
                   </div>
@@ -119,20 +69,18 @@ export const Tasks = () => {
         </div>
       </div>
 
-      {/* 3. TASK LIST (Vertical) */}
+      {/* 3. TASK LIST */}
       <div className="px-4">
         <h2 className="font-bold text-lg mb-4">Task List</h2>
-
         <div className="flex flex-col gap-3">
-          {TASKS.map((task, index) => (
+          {TASKS_DATA.map((task, index) => (
             <motion.div
               key={task.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }} // Staggered animation
+              transition={{ delay: index * 0.1 }}
               className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5 hover:border-yellow-500/30 transition-colors"
             >
-              {/* Left: Icon & Info */}
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#2c2c2e] flex items-center justify-center text-2xl shadow-inner">
                   {task.icon}
@@ -149,8 +97,6 @@ export const Tasks = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Right: Action Button */}
               {task.status === "claimed" ? (
                 <span className="text-green-500 font-bold text-sm flex items-center gap-1">
                   Done ✓
@@ -158,12 +104,7 @@ export const Tasks = () => {
               ) : (
                 <button
                   className={`px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95
-                  ${
-                    task.status === "pending"
-                      ? "bg-gray-700 text-gray-300"
-                      : "bg-white text-black hover:bg-yellow-400"
-                  }
-                `}
+                  ${task.status === "pending" ? "bg-gray-700 text-gray-300" : "bg-white text-black hover:bg-yellow-400"}`}
                 >
                   {task.status === "pending" ? "Check" : "Start"}
                 </button>
