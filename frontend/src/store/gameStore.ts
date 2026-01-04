@@ -3,14 +3,15 @@ import type { GameState } from "../types";
 import { getLevelInfo } from "../config/levels";
 
 interface GameStore extends GameState {
-  incrementPoints: () => void; // No argument needed now, logic is internal
-  decrementEnergy: () => void; // Logic internal
+  incrementPoints: () => void;
+  decrementEnergy: () => void;
   restoreEnergy: (amount: number) => void;
   setGameState: (state: Partial<GameState>) => void;
 
-  // Helpers for UI
+  // UI Helpers
   levelName: string;
-  tapValue: number; // <--- We expose this so UI can show "+2"
+  tapValue: number;
+  energyRegen: number; // <--- NEW PROPERTY
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -19,29 +20,24 @@ export const useGameStore = create<GameStore>((set) => ({
   maxEnergy: 1000,
   level: 1,
   levelName: "Bronze",
-  tapValue: 1, // Default
+  tapValue: 1,
+  energyRegen: 1, // Default value
 
   incrementPoints: () =>
     set((state) => {
-      // 1. Get value based on CURRENT points
       const { tapValue } = getLevelInfo(state.points);
-
-      // 2. Add that value
       const newPoints = state.points + tapValue;
-
-      // 3. Recalculate level (in case we just leveled up)
       const info = getLevelInfo(newPoints);
 
       return {
         points: newPoints,
         level: info.level,
         levelName: info.name,
-        tapValue: info.tapValue, // Update for next tap
+        tapValue: info.tapValue,
+        energyRegen: info.energyRegen, // <--- Update logic
       };
     }),
 
-  // We decrease 1 Energy per TAP, regardless of how many points you get
-  // This makes leveling up feel like a powerful upgrade
   decrementEnergy: () =>
     set((state) => ({
       energy: Math.max(0, state.energy - 1),
@@ -66,7 +62,8 @@ export const useGameStore = create<GameStore>((set) => ({
         maxEnergy: newState.maxEnergy || 1000,
         level: info.level,
         levelName: info.name,
-        tapValue: info.tapValue, // Sync value from server state
+        tapValue: info.tapValue,
+        energyRegen: info.energyRegen, // <--- Sync from calculated level
       };
     }),
 }));

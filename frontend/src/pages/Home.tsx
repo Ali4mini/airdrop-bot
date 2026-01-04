@@ -15,6 +15,7 @@ export const Home = () => {
     restoreEnergy,
     setGameState, // We use this to sync with server truth
     tapValue,
+    energyRegen,
   } = useGameStore();
 
   const { user } = useTelegram();
@@ -71,11 +72,11 @@ export const Home = () => {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      restoreEnergy(1);
+      restoreEnergy(energyRegen);
     }, 1000); // Runs every 1000ms no matter what
 
     return () => clearInterval(timer);
-  }, [restoreEnergy]); // Only depends on the function, not the 'energy' value
+  }, [restoreEnergy, energyRegen]); // Only depends on the function, not the 'energy' value
 
   // 3. TAP HANDLER (Optimistic UI Update)
   const handleTap = (
@@ -125,9 +126,15 @@ export const Home = () => {
         </div>
         <div className="bg-[#1c1c1e] rounded-xl p-2 flex flex-col items-center border border-white/5 shadow-lg">
           <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            Energy
+            Recharge
           </span>
-          <span className="text-sm font-bold text-white">Full</span>
+          <div className="flex items-center gap-1">
+            <span className="text-yellow-500 text-xs">⚡</span>
+            {/* Show dynamic rate */}
+            <span className="text-sm font-bold text-white">
+              +{energyRegen}/s
+            </span>
+          </div>
         </div>
       </div>
 
