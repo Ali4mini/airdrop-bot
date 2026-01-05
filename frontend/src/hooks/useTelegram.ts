@@ -27,10 +27,17 @@ export function useTelegram() {
     else console.log("Telegram Expand triggered");
   };
 
+  const hapticFeedback = (type: "light" | "medium" | "heavy" = "light") => {
+    if (isTelegram && WebApp.HapticFeedback) {
+      WebApp.HapticFeedback.impactOccurred(type);
+    }
+  };
+
   return {
     user,
     close,
     expand,
     isTelegram,
+    hapticFeedback, // You can call this during handleTap!
   };
 }

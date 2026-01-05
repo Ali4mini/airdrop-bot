@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../store/gameStore";
 import { useTelegram } from "../hooks/useTelegram";
-import { api } from "../api/client"; // Import our Axios client
+import { api } from "../api/client";
 import { Coin } from "../components/Coin";
+import { Boost } from "./Boost";
 
 export const Home = () => {
+  const [currentView, setCurrentView] = useState<"game" | "boost">("game");
   const {
     points,
     energy,
@@ -13,191 +15,169 @@ export const Home = () => {
     incrementPoints,
     decrementEnergy,
     restoreEnergy,
-    setGameState, // We use this to sync with server truth
+    setGameState,
     tapValue,
     energyRegen,
+    levelName,
+    progress,
   } = useGameStore();
 
   const { user } = useTelegram();
   const [clicks, setClicks] = useState<{ id: number; x: number; y: number }[]>(
     [],
   );
-
-  // Ref to track taps that haven't been sent to server yet
-  // We use a Ref because we don't want to re-render the component just because this number changes
   const unsyncedTaps = useRef(0);
 
-  // 1. INITIAL LOAD: Login to Backend
+  // Sync Logic
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       api
         .login(user)
-        .then((data) => {
-          console.log("Logged in:", data);
-          setGameState(data.gameState);
-        })
-        .catch((err) => console.error("Login failed:", err));
+        .then((data) => setGameState(data.gameState))
+        .catch(console.error);
     }
-    // CHANGE THIS LINE:
-    // Old: }, [user, setGameState]);
-    // New: Only run if the ID changes
-  }, [user?.id, setGameState]);
+  }, [user?.id]);
 
-  // 2. SYNC LOOP: Send accumulated taps every 2 seconds
   useEffect(() => {
     const interval = setInterval(async () => {
       if (user && unsyncedTaps.current > 0) {
         const tapsToSend = unsyncedTaps.current;
-
         try {
-          // Send request via Axios
-          const serverState = await api.syncTaps(user.id, tapsToSend);
-
-          // Reset the accumulator only after success
+          await api.syncTaps(user.id, tapsToSend);
           unsyncedTaps.current -= tapsToSend;
-
-          // Optional: Strictly force server state?
-          // Usually better to let local state drift slightly for smoothness,
-          // but syncing here prevents cheating.
-          // setGameState(serverState);
         } catch (error) {
-          console.error("Failed to sync taps:", error);
-          // If it fails, we keep the taps in unsyncedTaps and try again next loop
+          console.error(error);
         }
       }
-    }, 200); // Sync every .2 seconds
-
+    }, 2000);
     return () => clearInterval(interval);
   }, [user]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      restoreEnergy(energyRegen);
-    }, 1000); // Runs every 1000ms no matter what
-
+    const timer = setInterval(() => restoreEnergy(energyRegen), 1000);
     return () => clearInterval(timer);
-  }, [restoreEnergy, energyRegen]); // Only depends on the function, not the 'energy' value
+  }, [restoreEnergy, energyRegen]);
 
-  // 3. TAP HANDLER (Optimistic UI Update)
-  const handleTap = (
-    e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
-  ) => {
-    if (energy <= 0) return;
+  const handleTap = (e: any) => {
+    if (energy < tapValue) return;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
-    // 1. Coordinates for animation
-    const clientX =
-      "touches" in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY =
-      "touches" in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-
-    // 2. Update Local Store (Instant Feedback)
     incrementPoints();
     decrementEnergy();
-
-    // 3. Accumulate for Server Sync
     unsyncedTaps.current += 1;
 
-    // 4. Trigger Animation
     const id = Date.now();
-    setClicks((prev) => [
-      ...prev,
-      { id, x: clientX, y: clientY, val: tapValue },
-    ]);
-    setTimeout(() => {
-      setClicks((prev) => prev.filter((c) => c.id !== id));
-    }, 1000);
+    setClicks((prev) => [...prev, { id, x: clientX, y: clientY }]);
+    setTimeout(() => setClicks((prev) => prev.filter((c) => c.id !== id)), 600);
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center pt-8 relative z-10 min-h-0">
-      {/* STATS DASHBOARD */}
-      <div className="grid grid-cols-3 gap-2 w-full max-w-sm mb-6 px-4">
-        <div className="bg-[#1c1c1e] rounded-xl p-2 flex flex-col items-center border border-white/5 shadow-lg">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            Profit/Hr
-          </span>
-          <span className="text-sm font-bold text-white">+12.5k</span>
-        </div>
-        <div className="bg-[#1c1c1e] rounded-xl p-2 flex flex-col items-center border border-white/5 shadow-lg">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            League
-          </span>
-          <span className="text-sm font-bold text-yellow-500">Bronze</span>
-        </div>
-        <div className="bg-[#1c1c1e] rounded-xl p-2 flex flex-col items-center border border-white/5 shadow-lg">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            Recharge
-          </span>
-          <div className="flex items-center gap-1">
-            <span className="text-yellow-500 text-xs">⚡</span>
-            {/* Show dynamic rate */}
-            <span className="text-sm font-bold text-white">
-              +{energyRegen}/s
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN SCORE */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-full bg-yellow-500 border-2 border-yellow-300 flex items-center justify-center shadow-[0_0_10px_rgba(234,179,8,0.5)]">
-          <span className="text-xl">🦄</span>
-        </div>
-        <span className="text-5xl font-black text-white drop-shadow-lg font-mono">
-          {points.toLocaleString()}
-        </span>
-      </div>
-
-      {/* COIN COMPONENT */}
-      <div className="flex-grow flex items-center justify-center mb-4">
-        <Coin onTap={handleTap} />
-      </div>
-
-      {/* FLOATING NUMBERS */}
-      {clicks.map((click) => (
-        <div
-          key={click.id}
-          className="absolute text-4xl font-bold text-white pointer-events-none z-50"
-          style={{ top: click.y - 40, left: click.x }}
-        >
+    <div className="flex-1 flex flex-col items-center pt-8 relative overflow-hidden bg-black text-white">
+      <AnimatePresence mode="wait">
+        {currentView === "game" ? (
           <motion.div
-            initial={{ opacity: 1, y: 0, scale: 0.5 }}
-            animate={{ opacity: 0, y: -100, scale: 1.2 }}
-            transition={{ duration: 0.6 }}
-            className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+            key="game"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="w-full flex flex-col items-center"
           >
-            +{tapValue}
+            {/* TOP STATS */}
+            <div className="grid grid-cols-3 gap-2 w-full max-w-sm px-4 mb-8">
+              <StatBox label="Profit/Hr" value="+12.5k" />
+
+              {/* LEAGUE BOX WITH PROGRESS */}
+              <div className="bg-[#1c1c1e] rounded-xl p-2 border border-white/5 flex flex-col items-center relative overflow-hidden">
+                <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest">
+                  League
+                </span>
+                <span className="text-sm font-black text-yellow-500">
+                  {levelName}
+                </span>
+                {/* Subtle progress bar at bottom of card */}
+                <div
+                  className="absolute bottom-0 left-0 h-[2px] bg-yellow-500/50 transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+
+              <StatBox label="Recharge" value={`+${energyRegen}/s`} isEnergy />
+            </div>
+
+            {/* BALANCE */}
+            <div className="flex items-center gap-3 mb-8">
+              <span className="text-3xl">🦄</span>
+              <span className="text-5xl font-black font-mono">
+                {points.toLocaleString()}
+              </span>
+            </div>
+
+            {/* THE COIN */}
+            <div className="flex-grow flex items-center justify-center mb-8">
+              <Coin onTap={handleTap} />
+            </div>
+
+            {/* FLOATING TEXT */}
+            {clicks.map((c) => (
+              <motion.span
+                key={c.id}
+                initial={{ opacity: 1, y: c.y - 40, x: c.x }}
+                animate={{ opacity: 0, y: c.y - 120 }}
+                className="absolute text-3xl font-black pointer-events-none z-50 text-white"
+              >
+                +{tapValue}
+              </motion.span>
+            ))}
+
+            {/* BOTTOM NAV / ENERGY */}
+            <div className="w-full max-w-sm px-6 mb-8">
+              <div className="flex justify-between items-end mb-2">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
+                    Energy
+                  </span>
+                  <span className="text-sm font-bold flex items-center gap-1">
+                    <span className="text-yellow-500">⚡</span>
+                    {Math.floor(energy)} / {maxEnergy}
+                  </span>
+                </div>
+
+                {/* BOOST BUTTON */}
+                <button
+                  onClick={() => setCurrentView("boost")}
+                  className="bg-[#1c1c1e] px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 active:scale-95 transition-transform"
+                >
+                  <span className="text-lg">🚀</span>
+                  <span className="text-xs font-bold uppercase">Boost</span>
+                </button>
+              </div>
+
+              {/* ENERGY PROGRESS BAR */}
+              <div className="w-full h-3 bg-white/5 rounded-full border border-white/5 overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-yellow-600 to-yellow-300"
+                  animate={{ width: `${(energy / maxEnergy) * 100}%` }}
+                />
+              </div>
+            </div>
           </motion.div>
-        </div>
-      ))}
-
-      {/* ENERGY BAR */}
-      <div className="w-full max-w-xs px-4 mb-2">
-        <div className="flex justify-between text-xs font-bold text-gray-400 mb-1 uppercase tracking-wide">
-          <div className="flex items-center gap-1">
-            <span className="text-yellow-500">⚡</span>
-            <span>Energy</span>
-          </div>
-          <span>
-            {Math.floor(Number.isNaN(energy) ? 0 : energy)} /{" "}
-            {maxEnergy || 1000}
-          </span>
-        </div>
-
-        <div className="w-full bg-[#2d2d2d] rounded-full h-3 overflow-hidden border border-white/5 relative">
-          {/* Background track */}
-          <div className="absolute inset-0 bg-black/20" />
-
-          <motion.div
-            className="h-full bg-gradient-to-r from-yellow-500 to-yellow-300 relative z-10"
-            // SAFEGUARD: Ensure percentage is between 0 and 100
-            animate={{
-              width: `${Math.min(100, Math.max(0, (energy / maxEnergy) * 100))}%`,
-            }}
-            transition={{ type: "spring", stiffness: 50, damping: 10 }}
-          />
-        </div>
-      </div>
+        ) : (
+          <Boost key="boost" onBack={() => setCurrentView("game")} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
+
+const StatBox = ({ label, value, isEnergy }: any) => (
+  <div className="bg-[#1c1c1e] rounded-xl p-2 border border-white/5 flex flex-col items-center">
+    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest">
+      {label}
+    </span>
+    <span className="text-sm font-black flex items-center gap-1">
+      {isEnergy && <span className="text-yellow-500 text-[10px]">⚡</span>}
+      {value}
+    </span>
+  </div>
+);
