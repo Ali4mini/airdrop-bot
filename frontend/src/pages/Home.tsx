@@ -71,16 +71,22 @@ export const Home = () => {
     return () => clearInterval(timer);
   }, [restoreEnergy, energyRegen]);
 
-  const handleTap = (e: any) => {
+  const lastTapRef = useRef<number>(0);
+
+  const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    // 2. THE FIX: Software Debounce
+    // If the last tap was less than 40ms ago, ignore this one.
+    // This kills "ghost" clicks instantly.
+    const now = Date.now();
+    if (now - lastTapRef.current < 40) return;
+    lastTapRef.current = now;
+
     if (energy < tapValue) return;
 
-    // Correct relative coordinate calculation
+    // ... Rest of your existing logic ...
     const rect = e.currentTarget.getBoundingClientRect();
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     incrementPoints();
     decrementEnergy();
@@ -89,6 +95,10 @@ export const Home = () => {
     const id = Date.now();
     setClicks((prev) => [...prev, { id, x, y }]);
     setTimeout(() => setClicks((prev) => prev.filter((c) => c.id !== id)), 600);
+
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred("light");
+    }
   };
 
   return (
