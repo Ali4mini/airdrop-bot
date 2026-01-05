@@ -1,30 +1,30 @@
 import axios from "axios";
-import type { User, GameState } from "../types";
 
-// Create an Axios instance with base configuration
 const apiClient = axios.create({
-  baseURL: "http://localhost:8000/api", // Make sure FastAPI is running here
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // If testing on a real phone via Telegram,
+  // this MUST be your PC's local IP (e.g., 192.168.1.50) or an Ngrok URL
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
+  headers: { "Content-Type": "application/json" },
 });
 
 export const api = {
-  /**
-   * Authenticates the user and returns their latest game state
-   */
-  login: async (user: User): Promise<{ user: User; gameState: GameState }> => {
+  login: async (user: any) => {
     const response = await apiClient.post("/auth", user);
     return response.data;
   },
 
-  /**
-   * Syncs the accumulated taps to the server
-   */
-  syncTaps: async (userId: number, taps: number): Promise<GameState> => {
+  syncTaps: async (userId: number, taps: number) => {
     const response = await apiClient.post("/tap", {
       user_id: userId,
       taps: taps,
+    });
+    return response.data; // This is the updated GameState
+  },
+
+  buyUpgrade: async (userId: number, upgradeType: string) => {
+    const response = await apiClient.post("/upgrade", {
+      user_id: userId,
+      upgrade_type: upgradeType,
     });
     return response.data;
   },

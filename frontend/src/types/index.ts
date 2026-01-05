@@ -1,5 +1,4 @@
-// src/types/index.ts
-
+// --- User Models ---
 export interface User {
   id: number;
   username?: string;
@@ -9,6 +8,48 @@ export interface User {
   is_premium?: boolean;
 }
 
+// --- Game State (Matches Backend Pydantic Model) ---
+export interface GameState {
+  points: number;
+  energy: number;
+  maxEnergy: number; // mapped from max_energy in backend
+  level: number;
+
+  // New Boost Levels
+  multitapLevel: number; // mapped from multitap_level
+  energyLimitLevel: number; // mapped from energy_limit_level
+  rechargeSpeedLevel: number; // mapped from recharge_speed_level
+}
+
+// --- Boost/Upgrade Types ---
+// Using string literals ensures you don't send a typo to the backend
+export type UpgradeType = "multitap" | "energy_limit" | "recharge_speed";
+
+export interface UpgradeResponse extends Partial<GameState> {
+  // The backend might return only the updated fields,
+  // so we make them partial or include specific ones
+  points: number;
+}
+
+// --- Levels & Progression ---
+export interface LevelInfo {
+  level: number;
+  name: string;
+  minPoints: number;
+  tapValue: number;
+  energyRegen: number;
+  nextLevelPoints: number | null;
+  progress: number;
+}
+
+// --- UI & Animations ---
+export interface ClickAnimation {
+  id: number;
+  x: number;
+  y: number;
+}
+
+// --- Social & Tasks ---
 export type TaskStatus = "start" | "pending" | "claimed";
 
 export interface Task {
@@ -17,39 +58,6 @@ export interface Task {
   reward: number;
   icon: string;
   status: TaskStatus;
-}
-
-// --- ADDED FOR PROGRESSION ---
-export interface LevelInfo {
-  level: number;
-  name: string;
-  minPoints: number;
-  tapValue: number;
-  energyRegen: number;
-}
-
-// --- UPDATED GAME STATE ---
-export interface GameState {
-  points: number;
-  energy: number;
-  maxEnergy: number;
-  level: number;
-  // These are often calculated but helpful to have in the state
-  tapValue: number;
-  energyRegen: number;
-}
-
-// --- ADDED FOR UI ANIMATIONS ---
-export interface ClickAnimation {
-  id: number;
-  x: number;
-  y: number;
-}
-
-export interface DailyReward {
-  day: number;
-  reward: number;
-  isClaimed: boolean;
 }
 
 export interface Friend {

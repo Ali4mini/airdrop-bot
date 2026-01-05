@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 
 # --- User ---
 class UserData(BaseModel):
@@ -15,6 +15,14 @@ class GameState(BaseModel):
     energy: int = 1000
     max_energy: int = 1000
     level: int = 1
+    # Add these for the Boost system
+    multitap_level: int = 1
+    energy_limit_level: int = 1
+    recharge_speed_level: int = 1
+
+class UpgradePayload(BaseModel):
+    user_id: int
+    upgrade_type: str # 'multitap', 'energy_limit', 'recharge_speed'
 
 # --- Tasks ---
 class Task(BaseModel):

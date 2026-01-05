@@ -37,6 +37,35 @@ export const Home = () => {
         .catch(console.error);
   }, [user?.id]);
 
+  // SYNC LOOP: Send accumulated taps every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (user && unsyncedTaps.current > 0) {
+        const tapsToSend = unsyncedTaps.current;
+
+        try {
+          // 1. Send to server
+          const serverState = await api.syncTaps(user.id, tapsToSend);
+
+          // 2. Subtract ONLY the amount we just successfully sent
+          // (In case the user tapped more while the request was in flight)
+          unsyncedTaps.current -= tapsToSend;
+
+          // 3. Update the Store with the "Truth" from the server
+          // This keeps points, energy, and levels in perfect sync
+          setGameState(serverState);
+
+          console.log("Synced successfully:", serverState.points);
+        } catch (error) {
+          console.error("Failed to sync taps:", error);
+          // We do NOT subtract taps here, so they will be retried in the next loop
+        }
+      }
+    }, 300); // 3 seconds is standard for Telegram bots
+
+    return () => clearInterval(interval);
+  }, [user, setGameState]);
+
   useEffect(() => {
     const timer = setInterval(() => restoreEnergy(energyRegen), 1000);
     return () => clearInterval(timer);
