@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from .database import redis_client
 from .models import UserData, TapPayload, UpgradePayload
-import math
+import time 
 
 router = APIRouter()
 
@@ -35,44 +35,92 @@ def calculate_upgrade_cost(type: str, current_level: int):
     return int(config["base_cost"] * (current_level ** config["coeff"]))
 
 # --- AUTHENTICATION ---
+
+router = APIRouter()
+
+# ... (Keep your UPGRADE_CONFIG and TASKS_DB here) ...
+UPGRADE_CONFIG = {
+    "multitap":       {"base_cost": 1000, "coeff": 2}, 
+    "energy_limit":   {"base_cost": 500,  "coeff": 1.5},
+    "recharge_speed": {"base_cost": 2000, "coeff": 2.5},
+    "tap_bot":        {"base_cost": 10000, "coeff": 3} 
+}
+
+# --- HELPER: GET LEVEL & REGEN INFO ---
+# We need this to know how fast to refill energy on login
+LEVELS = [
+    {"min": 10000, "val": 10, "regen": 1, "lvl": 6},
+    {"min": 5000,  "val": 5,  "regen": 1, "lvl": 5},
+    {"min": 1000,  "val": 4,  "regen": 1, "lvl": 4},
+    {"min": 500,   "val": 3,  "regen": 1, "lvl": 3},
+    {"min": 100,   "val": 2,  "regen": 1, "lvl": 2},
+    {"min": 0,     "val": 1,  "regen": 1, "lvl": 1},
+]
+
 @router.post("/auth")
 async def login(user: UserData):
     user_key = f"user:{user.id}"
-    
-    # Check if user exists
     exists = await redis_client.exists(user_key)
     
+    current_time = int(time.time())
+
     if not exists:
-        # Create new user
+        # NEW USER: Start with Full Energy
         initial_state = {
             "points": 0,
-            "energy": 1000,
+            "energy": 1000, 
             "max_energy": 1000,
             "level": 1,
             "multitap_level": 1,
             "energy_limit_level": 1,
             "recharge_speed_level": 1,
-            "first_name": user.first_name or ""
+            "last_sync_time": current_time # <--- Track time
         }
         await redis_client.hset(user_key, mapping=initial_state)
     
-    # Fetch latest state
+    # FETCH DATA
     data = await redis_client.hgetall(user_key)
     
+    # --- OFFLINE REGENERATION LOGIC ---
+    stored_energy = int(data.get("energy", 1000))
+    max_energy = int(data.get("max_energy", 1000))
+    last_sync = int(data.get("last_sync_time", current_time))
+    
+    # 1. Calculate how much to regen
+    recharge_level = int(data.get("recharge_speed_level", 1))
+    
+    # Base regen (from league) + Recharge Boost
+    # (Simplified: assume base is 1 for now)
+    regen_rate = 1 + (recharge_level - 1) 
+    
+    seconds_passed = current_time - last_sync
+    
+    # 2. Add gained energy (Capped at Max)
+    energy_gained = seconds_passed * regen_rate
+    new_energy = min(max_energy, stored_energy + energy_gained)
+    
+    # 3. Save new energy to Redis immediately so it persists
+    if new_energy != stored_energy:
+        await redis_client.hset(user_key, mapping={
+            "energy": new_energy,
+            "last_sync_time": current_time
+        })
+    # ----------------------------------
+
     return {
         "user": user,
         "gameState": {
             "points": int(data.get("points", 0)),
-            "energy": int(data.get("energy", 1000)),
-            "maxEnergy": int(data.get("max_energy", 1000)),
+            "energy": new_energy, # Return the REFILLED energy
+            "maxEnergy": max_energy,
             "level": int(data.get("level", 1)),
-            "multitap_level": int(data.get("multitap_level", 1)),
-            "energy_limit_level": int(data.get("energy_limit_level", 1)),
-            "recharge_speed_level": int(data.get("recharge_speed_level", 1))
+            "multitapLevel": int(data.get("multitap_level", 1)),
+            "energyLimitLevel": int(data.get("energy_limit_level", 1)),
+            "rechargeSpeedLevel": int(data.get("recharge_speed_level", 1)),
+            "tapBotLevel": int(data.get("tap_bot_level", 0))
         }
     }
 
-# --- SYNC TAPS ---
 @router.post("/tap")
 async def sync_taps(payload: TapPayload):
     user_key = f"user:{payload.user_id}"
@@ -81,49 +129,47 @@ async def sync_taps(payload: TapPayload):
     if not data:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # 2. Get User Stats
+    # Update timestamp
+    current_time = int(time.time())
+
     multitap_level = int(data.get("multitap_level", 1))
-    current_level = int(data.get("level", 1))
     current_energy = int(data.get("energy", 0))
-
-    # 3. Find Base Tap Value for their Level
-    # (Default to 1 if something goes wrong)
-    level_base_tap = 1
-    for l in LEVELS:
-        if l["lvl"] == current_level:
-            level_base_tap = l["val"]
-            break
     
-    # 4. CALCULATE TOTAL TAP POWER
-    # Logic: League Base + (Multitap Level - 1)
-    # Example: Silver (2) + Multitap Lvl 3 = 2 + 2 = 4 points per tap
-    points_per_tap = level_base_tap + (multitap_level - 1)
+    # Handle missing Level config gracefully
+    current_level = int(data.get("level", 1))
+    base_val = 1
+    for l in LEVELS: 
+        if l['lvl'] == current_level: base_val = l['val']
 
-    # 5. Calculate Total
+    points_per_tap = base_val + (multitap_level - 1)
+    
     points_gained = payload.taps * points_per_tap
     energy_cost = payload.taps * points_per_tap 
-
+    
     new_energy = max(0, current_energy - energy_cost)
     
-    # ... Pipeline update (same as before) ...
     pipe = redis_client.pipeline()
     pipe.hincrby(user_key, "points", points_gained)
-    pipe.hset(user_key, "energy", new_energy)
+    
+    # Update Energy AND Time
+    pipe.hset(user_key, mapping={
+        "energy": new_energy,
+        "last_sync_time": current_time # <--- Important!
+    })
+    
     await pipe.execute()
     
     final_data = await redis_client.hgetall(user_key)
     
     return {
-        # ... return all fields ...
         "points": int(final_data.get("points", 0)),
         "energy": int(final_data.get("energy")), 
         "maxEnergy": int(final_data.get("max_energy", 1000)),
-        "multitap_level": int(final_data.get("multitap_level", 1)),
-        "energy_limit_level": int(final_data.get("energy_limit_level", 1)),
-        "recharge_speed_level": int(final_data.get("recharge_speed_level", 1)),
+        "multitapLevel": int(final_data.get("multitap_level", 1)),
+        "energyLimitLevel": int(final_data.get("energy_limit_level", 1)),
+        "rechargeSpeedLevel": int(final_data.get("recharge_speed_level", 1)),
         "level": int(final_data.get("level", 1))
     }
-
 # --- BUY UPGRADE ---
 @router.post("/upgrade")
 async def buy_upgrade(payload: UpgradePayload):
