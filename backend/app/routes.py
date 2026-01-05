@@ -18,6 +18,15 @@ TASKS_DB = [
     {"id": 2, "title": "Follow Twitter", "reward": 2500, "icon": "🐦", "status": "start"},
 ]
 
+LEVELS = [
+    {"min": 10000, "val": 10, "lvl": 6}, # Grandmaster: Base 10
+    {"min": 5000,  "val": 5,  "lvl": 5}, # Diamond: Base 5
+    {"min": 1000,  "val": 4,  "lvl": 4}, # Platinum: Base 4
+    {"min": 500,   "val": 3,  "lvl": 3}, # Gold: Base 3
+    {"min": 100,   "val": 2,  "lvl": 2}, # Silver: Base 2
+    {"min": 0,     "val": 1,  "lvl": 1}, # Bronze: Base 1
+]
+
 def calculate_upgrade_cost(type: str, current_level: int):
     if type not in UPGRADE_CONFIG:
         return 999999999
@@ -68,41 +77,46 @@ async def login(user: UserData):
 async def sync_taps(payload: TapPayload):
     user_key = f"user:{payload.user_id}"
     
-    # 1. Get current state
     data = await redis_client.hgetall(user_key)
     if not data:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # 2. SAFETY CHECK: Ensure we found the energy key
-    # If the database returns empty/wrong keys, fallback to 1000, NOT 0.
-    if "energy" not in data and b"energy" not in data:
-         # Log this error in production
-         print(f"WARNING: Energy key missing for user {payload.user_id}")
-         current_energy = 1000 
-    else:
-         current_energy = int(data.get("energy", 1000))
-
+    # 2. Get User Stats
     multitap_level = int(data.get("multitap_level", 1))
+    current_level = int(data.get("level", 1))
+    current_energy = int(data.get("energy", 0))
 
-    # 3. Calculate Logic
-    points_gained = payload.taps * multitap_level
-    energy_cost = payload.taps * multitap_level 
+    # 3. Find Base Tap Value for their Level
+    # (Default to 1 if something goes wrong)
+    level_base_tap = 1
+    for l in LEVELS:
+        if l["lvl"] == current_level:
+            level_base_tap = l["val"]
+            break
     
-    # 4. Decrease Energy
+    # 4. CALCULATE TOTAL TAP POWER
+    # Logic: League Base + (Multitap Level - 1)
+    # Example: Silver (2) + Multitap Lvl 3 = 2 + 2 = 4 points per tap
+    points_per_tap = level_base_tap + (multitap_level - 1)
+
+    # 5. Calculate Total
+    points_gained = payload.taps * points_per_tap
+    energy_cost = payload.taps * points_per_tap 
+
     new_energy = max(0, current_energy - energy_cost)
     
-    # 5. Pipeline Update
+    # ... Pipeline update (same as before) ...
     pipe = redis_client.pipeline()
     pipe.hincrby(user_key, "points", points_gained)
     pipe.hset(user_key, "energy", new_energy)
     await pipe.execute()
     
-    # 6. Return Data
     final_data = await redis_client.hgetall(user_key)
     
     return {
+        # ... return all fields ...
         "points": int(final_data.get("points", 0)),
-        "energy": int(final_data.get("energy", new_energy)), # Return calculated if fetch fails
+        "energy": int(final_data.get("energy")), 
         "maxEnergy": int(final_data.get("max_energy", 1000)),
         "multitap_level": int(final_data.get("multitap_level", 1)),
         "energy_limit_level": int(final_data.get("energy_limit_level", 1)),
