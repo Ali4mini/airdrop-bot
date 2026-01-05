@@ -1,11 +1,8 @@
 import redis.asyncio as redis
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# 1. Get URL from environment (Docker) or default to localhost (Local)
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-# Connect to Redis
-redis_client = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
-
-async def get_redis():
-    return redis_client
+# 2. CRITICAL: decode_responses=True makes Redis return Strings, not Bytes
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)

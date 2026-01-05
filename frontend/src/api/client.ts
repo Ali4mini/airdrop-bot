@@ -1,10 +1,12 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  // If testing on a real phone via Telegram,
-  // this MUST be your PC's local IP (e.g., 192.168.1.50) or an Ngrok URL
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
-  headers: { "Content-Type": "application/json" },
+  // If you are using Docker/Vite proxy, this might be "/api"
+  // If you are running locally, it is usually port 8000
+  baseURL: "http://localhost:8000/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 export const api = {

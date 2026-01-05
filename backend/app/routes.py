@@ -73,34 +73,39 @@ async def sync_taps(payload: TapPayload):
     if not data:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # 2. Parse Redis Data (Handle potential missing keys with defaults)
+    # 2. SAFETY CHECK: Ensure we found the energy key
+    # If the database returns empty/wrong keys, fallback to 1000, NOT 0.
+    if "energy" not in data and b"energy" not in data:
+         # Log this error in production
+         print(f"WARNING: Energy key missing for user {payload.user_id}")
+         current_energy = 1000 
+    else:
+         current_energy = int(data.get("energy", 1000))
+
     multitap_level = int(data.get("multitap_level", 1))
-    current_energy = int(data.get("energy", 0))
-    # Note: We don't really need max_energy for calculation, just for return
-    
+
     # 3. Calculate Logic
-    # Points gained = (Taps clicked) * (Points per tap)
     points_gained = payload.taps * multitap_level
-    
-    # Energy cost = Points gained (Standard logic) 
-    # Or simply payload.taps if you want 1 tap = 1 energy regardless of multiplier
-    # Let's use: Cost = Taps (so Multitap is a pure bonus)
     energy_cost = payload.taps * multitap_level 
     
+    # 4. Decrease Energy
     new_energy = max(0, current_energy - energy_cost)
+    print("energy_cost:", energy_cost)
+    print("current:", current_energy)
     
-    # 4. Update Redis (Atomic Pipeline)
+    # 5. Pipeline Update
     pipe = redis_client.pipeline()
     pipe.hincrby(user_key, "points", points_gained)
     pipe.hset(user_key, "energy", new_energy)
     await pipe.execute()
     
-    # 5. Return updated state to frontend
+    # 6. Return Data
     final_data = await redis_client.hgetall(user_key)
     
+    print("energy snoop:", new_energy)
     return {
         "points": int(final_data.get("points", 0)),
-        "energy": int(final_data.get("energy", 0)),
+        "energy": int(final_data.get("energy", new_energy)), # Return calculated if fetch fails
         "maxEnergy": int(final_data.get("max_energy", 1000)),
         "multitap_level": int(final_data.get("multitap_level", 1)),
         "energy_limit_level": int(final_data.get("energy_limit_level", 1)),
