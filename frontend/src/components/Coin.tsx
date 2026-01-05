@@ -1,4 +1,5 @@
-import { motion } from "framer-motion";
+import React, { useState } from "react";
+import { motion, useSpring, useMotionValue, useTransform } from "framer-motion";
 
 interface CoinProps {
   onTap: (
@@ -7,55 +8,97 @@ interface CoinProps {
 }
 
 export const Coin = ({ onTap }: CoinProps) => {
+  // 3D Tilt Logic
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  // Smooth out the tilt return animation
+  const mouseXSpring = useSpring(x);
+  const mouseYSpring = useSpring(y);
+
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["20deg", "-20deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-20deg", "20deg"]);
+
   const handleInteraction = (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
   ) => {
-    // If it's a touch event, prevent the browser from firing the mouse click emulation later
-    if ("touches" in e) {
-      // e.preventDefault(); // Sometimes needed, but React's synthetic events handle this well usually.
-      // Only if you experience scrolling issues, uncomment above.
-    }
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    // Calculate touch position relative to center for the 3D tilt
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    const offsetX = (clientX - rect.left) / rect.width - 0.5;
+    const offsetY = (clientY - rect.top) / rect.height - 0.5;
+
+    x.set(offsetX);
+    y.set(offsetY);
+
+    // Reset tilt after a short delay
+    setTimeout(() => {
+      x.set(0);
+      y.set(0);
+    }, 100);
+
     onTap(e);
   };
 
   return (
-    <div className="relative flex items-center justify-center">
-      <div className="absolute inset-0 bg-yellow-500 rounded-full blur-[60px] opacity-20 animate-pulse pointer-events-none" />
+    <div className="relative flex items-center justify-center perspective-1000">
+      {/* Dynamic Background Glow */}
+      <div className="absolute w-72 h-72 bg-orange-500 rounded-full blur-[80px] opacity-20 animate-pulse pointer-events-none" />
 
       <motion.div
-        whileTap={{ scale: 0.95, rotate: 3 }}
-        whileHover={{ scale: 1.02 }}
-        className="w-80 h-80 cursor-pointer select-none touch-manipulation relative z-10"
-        // FIX: Use onPointerDown instead of onClick + onTouchStart
-        // onPointerDown covers both Mouse and Touch in modern browsers (Chrome/Safari/Mobile)
-        onPointerDown={handleInteraction}
         style={{
-          WebkitTapHighlightColor: "transparent",
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
         }}
+        whileTap={{ scale: 0.92 }}
+        onPointerDown={handleInteraction}
+        className="relative w-72 h-72 cursor-pointer select-none touch-manipulation z-10"
       >
-        {/* ... (Rest of your Coin CSS/HTML remains exactly the same) ... */}
-        <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FCD34D] via-[#D97706] to-[#78350F] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.5),inset_0_2px_4px_rgba(255,255,255,0.3)]">
-          <div className="w-full h-full rounded-full bg-[#B45309] shadow-[inset_0_5px_10px_rgba(0,0,0,0.4)] p-1 relative overflow-hidden">
-            <div className="w-full h-full rounded-full bg-gradient-to-tr from-[#FFD700] via-[#F59E0B] to-[#D97706] flex items-center justify-center relative shadow-[inset_0_2px_5px_rgba(255,255,255,0.4)]">
+        {/* OUTSIDE EDGE (The "Thickness" of the coin) */}
+        <div className="absolute inset-0 rounded-full bg-[#8B4513] translate-y-2 shadow-2xl" />
+
+        {/* MAIN BODY */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-[#FDE68A] via-[#B45309] to-[#78350F] p-[6px] shadow-inner">
+          {/* INNER BEZEL (The shiny rim) */}
+          <div className="w-full h-full rounded-full bg-gradient-to-tr from-[#B45309] via-[#FDE68A] to-[#B45309] p-[4px]">
+            {/* COIN FACE */}
+            <div className="w-full h-full rounded-full bg-[#D97706] relative overflow-hidden flex items-center justify-center shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)]">
+              {/* Texture/Pattern (Radial lines) */}
               <div
-                className="absolute inset-0 opacity-20 rounded-full mix-blend-overlay pointer-events-none"
+                className="absolute inset-0 opacity-30"
                 style={{
-                  backgroundImage: `radial-gradient(circle at center, transparent 30%, #78350F 100%), repeating-conic-gradient(#78350F 0deg 5deg, transparent 5deg 10deg)`,
+                  backgroundImage: `repeating-conic-gradient(from 0deg, transparent 0deg 10deg, #451a03 10deg 20deg)`,
                 }}
               />
 
-              <div className="absolute inset-4 rounded-full border-2 border-[#FEF3C7] opacity-30 border-dashed" />
+              {/* Central Embossed Ring */}
+              <div className="absolute w-[80%] h-[80%] rounded-full border-[3px] border-[#B45309]/30 flex items-center justify-center">
+                {/* Symbol with depth */}
+                <span className="text-8xl drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)] z-20">
+                  🔥
+                </span>
+              </div>
 
-              <span className="text-9xl filter drop-shadow-lg transform -rotate-6 select-none relative z-20 pointer-events-none">
-                🦄
-              </span>
+              {/* Top "Shine" Highlight */}
+              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 via-transparent to-transparent pointer-events-none" />
 
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-[40%] bg-gradient-to-b from-white/40 to-transparent rounded-t-full blur-[1px] pointer-events-none" />
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[60%] h-[10px] bg-white/20 blur-md rounded-[100%] pointer-events-none" />
+              {/* Bottom "Shadow" Reflection */}
+              <div className="absolute bottom-0 right-0 w-full h-full bg-gradient-to-tl from-black/20 via-transparent to-transparent pointer-events-none" />
             </div>
           </div>
         </div>
       </motion.div>
+
+      {/* CSS for Perspective - Add to your global CSS or a style tag */}
+      <style>{`
+        .perspective-1000 {
+          perspective: 1000px;
+        }
+      `}</style>
     </div>
   );
 };
