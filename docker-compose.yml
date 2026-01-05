@@ -9,6 +9,15 @@ services:
       - redis_data:/data
     restart: always
 
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: tap_bot_insight
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    restart: always
+
   # Backend (FastAPI)
   backend:
     build: ./backend # Path to your backend folder

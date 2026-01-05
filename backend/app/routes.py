@@ -90,8 +90,6 @@ async def sync_taps(payload: TapPayload):
     
     # 4. Decrease Energy
     new_energy = max(0, current_energy - energy_cost)
-    print("energy_cost:", energy_cost)
-    print("current:", current_energy)
     
     # 5. Pipeline Update
     pipe = redis_client.pipeline()
@@ -102,7 +100,6 @@ async def sync_taps(payload: TapPayload):
     # 6. Return Data
     final_data = await redis_client.hgetall(user_key)
     
-    print("energy snoop:", new_energy)
     return {
         "points": int(final_data.get("points", 0)),
         "energy": int(final_data.get("energy", new_energy)), # Return calculated if fetch fails
