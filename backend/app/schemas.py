@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 # --- User ---
@@ -50,7 +50,7 @@ class UserTasksResponse(BaseModel):
 # --- Payloads ---
 class TapPayload(BaseModel):
     user_id: int
-    taps: int
+    taps: int = Field(..., gt=0, le=1000) # insure the value is not negative
 
 class TapResponse(BaseModel):
     points: int

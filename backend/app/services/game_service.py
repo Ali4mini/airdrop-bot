@@ -41,14 +41,20 @@ class GameService:
 
     @staticmethod
     async def process_tap(user_id: int, taps: int):
+        # [FIX] Defensive check: If taps is negative or zero, just return current state
+        # (Though Pydantic should catch this, it's good to be safe)
+        if taps < 0:
+            return await GameService.get_user_state(user_id)
+
         user_key = GameService.get_user_key(user_id)
         data = await redis_client.hgetall(user_key)
+        
         if not data:
             raise HTTPException(status_code=404, detail="User not found")
         
         current_time = int(time.time())
         
-        # 1. Load Data
+        # 1. Parse Data
         multitap_level = int(data.get("multitap_level", 1))
         stored_energy = int(data.get("energy", 0))
         max_energy = int(data.get("max_energy", 1000))
@@ -56,42 +62,62 @@ class GameService:
         recharge_level = int(data.get("recharge_speed_level", 1))
         current_level = int(data.get("level", 1))
 
-        # 2. Passive Regen
+        # 2. Calculate Passive Regen
         regen_rate = 1 + (recharge_level - 1)
         seconds_passed = current_time - last_sync
+        
+        # [FIX] Cap the energy at max_energy. 
+        # Even if 1 year passed, they cannot have 1,000,000 energy.
         energy_with_regen = min(max_energy, stored_energy + (seconds_passed * regen_rate))
         
-        # 3. Tap Logic
+        # 3. Calculate Cost per Tap
+        # Determine base points based on user level
         base_val = 1
         for l in LEVELS: 
-            if l['lvl'] == current_level: base_val = l['val']
+            if l['lvl'] == current_level: 
+                base_val = l['val']
 
         points_per_tap = base_val + (multitap_level - 1)
-        points_gained = taps * points_per_tap
-        energy_cost = taps * points_per_tap 
+        energy_cost_per_tap = points_per_tap # Assumption: 1 Point costs 1 Energy
         
-        new_energy = max(0, energy_with_regen - energy_cost)
+        # 4. [FIX] The "Infinite Money" Glitch Fix
+        # Calculate how many taps the user can AFFORD with their current energy
+        if energy_cost_per_tap > 0:
+            max_affordable_taps = energy_with_regen // energy_cost_per_tap
+        else:
+            max_affordable_taps = taps # Safety catch if cost is somehow 0
+
+        # We only process the valid amount of taps. 
+        # If user requests 100 but only affords 10, we process 10.
+        actual_taps = min(taps, max_affordable_taps)
         
-        # 4. Save
+        points_gained = actual_taps * points_per_tap
+        total_energy_cost = actual_taps * energy_cost_per_tap 
+        
+        new_energy = int(energy_with_regen - total_energy_cost)
+        
+        # 5. Save State
         pipe = redis_client.pipeline()
         pipe.hincrby(user_key, "points", points_gained)
         pipe.hset(user_key, mapping={
-            "energy": int(new_energy),
+            "energy": new_energy,
             "last_sync_time": current_time
         })
         await pipe.execute()
         
-        # Return structured data matching Schema
+        # 6. Return Data
         final_points = int(data.get("points", 0)) + points_gained
         
         return {
             "points": final_points,
-            "energy": int(new_energy), 
+            "energy": new_energy, 
             "maxEnergy": max_energy,
             "multitapLevel": multitap_level,
             "energyLimitLevel": int(data.get("energy_limit_level", 1)),
             "rechargeSpeedLevel": recharge_level,
-            "level": current_level
+            "level": current_level,
+            # Optional: Return this to let frontend know not all taps were counted
+            "processed_taps": actual_taps 
         }
 
     @staticmethod

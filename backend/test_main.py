@@ -2,6 +2,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 import fakeredis.aioredis
+import time
 
 # Import the app
 from main import app
@@ -197,3 +198,79 @@ async def test_daily_reward_validation(client, mock_redis):
     # Try to claim -> Fail
     response = await client.post(f"/api/tasks/{user_id}/daily-reward/1/claim")
     assert response.status_code == 400
+
+@pytest.mark.asyncio
+async def test_prevent_negative_taps(client, mock_redis):
+    """Exploit Check: sending negative taps should be rejected"""
+    user_id = 666
+    await client.post("/api/auth", json={"id": user_id, "first_name": "Hacker"})
+    
+    # Send negative taps
+    payload = {"user_id": user_id, "taps": -100}
+    response = await client.post("/api/tap", json=payload)
+    
+    # Ideally this should be 422 (Validation Error) or 400
+    # currently your code accepts it, so this test might FAIL until we fix schemas.py
+    assert response.status_code in [400, 422] 
+
+@pytest.mark.asyncio
+async def test_prevent_tapping_more_than_energy(client, mock_redis):
+    """Exploit Check: Tapping 1000 times with only 10 energy"""
+    user_id = 777
+    
+    # Seed user with low energy (10)
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 0,
+        "energy": 10,
+        "max_energy": 1000,
+        "level": 1,
+        "multitap_level": 1,
+        "last_sync_time": int(time.time()) # No regen time
+    })
+    
+    # Try to tap 100 times (Cost 100)
+    response = await client.post("/api/tap", json={"user_id": user_id, "taps": 100})
+    
+    data = response.json()
+    
+    # The user should ONLY get credit for the energy they had (10 taps), not 100.
+    # Or the request should be rejected. 
+    # Current code gives full points -> This is a BUG/GLITCH.
+    assert data["points"] <= 10 # Should not be 100
+
+@pytest.mark.asyncio
+async def test_upgrade_insufficient_funds(client, mock_redis):
+    user_id = 900
+    # Seed user with 0 points
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 0,
+        "multitap_level": 1
+    })
+
+    payload = {"user_id": user_id, "upgrade_type": "multitap"}
+    response = await client.post("/api/upgrade", json=payload)
+    
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Not enough points"
+
+@pytest.mark.asyncio
+async def test_energy_regen_cap(client, mock_redis):
+    """Ensure energy doesn't overflow max_energy after long inactivity"""
+    import time
+    user_id = 999
+    
+    # User last seen 1 year ago
+    long_ago = int(time.time()) - (3600 * 24 * 365)
+    
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "energy": 0,
+        "max_energy": 1000,
+        "last_sync_time": long_ago,
+        "recharge_speed_level": 1
+    })
+    
+    response = await client.post("/api/auth", json={"id": user_id, "first_name": "OldUser"})
+    
+    data = response.json()["gameState"]
+    # Energy should be exactly max_energy (1000), not 31,000,000
+    assert data["energy"] == 1000
