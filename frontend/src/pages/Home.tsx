@@ -5,6 +5,7 @@ import { useTelegram } from "../hooks/useTelegram";
 import { api } from "../api/client";
 import { Coin } from "../components/Coin";
 import { Boost } from "./Boost";
+import { useUIStore } from "../store/uiStore";
 
 export const Home = () => {
   const [currentView, setCurrentView] = useState<"game" | "boost">("game");
@@ -32,6 +33,19 @@ export const Home = () => {
   const unsyncedTaps = useRef(0);
   const lastTapRef = useRef<number>(0);
   const energyRef = useRef(energy);
+  const { openLevelUp } = useUIStore();
+
+  // Track previous level to detect changes
+  const prevLevelRef = useRef<string>(levelName);
+
+  useEffect(() => {
+    // If level changed AND it's not the initial load (empty string or same value)
+    if (prevLevelRef.current && prevLevelRef.current !== levelName) {
+      openLevelUp(levelName);
+    }
+    // Update ref
+    prevLevelRef.current = levelName;
+  }, [levelName, openLevelUp]);
 
   // Keep energyRef in sync with real energy
   useEffect(() => {
