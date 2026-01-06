@@ -40,13 +40,13 @@ export const api = {
 
   // --- NEW TASK MANAGEMENT ENDPOINTS ---
 
-  getUserTasks: async (userId: string): Promise<UserTasksResponse> => {
+  getUserTasks: async (userId: number): Promise<UserTasksResponse> => {
     const response = await apiClient.get(`/tasks/${userId}`);
     return response.data;
   },
 
   completeTask: async (
-    userId: string,
+    userId: number,
     taskId: string,
   ): Promise<TaskUpdateResponse> => {
     const response = await apiClient.post(
@@ -56,7 +56,7 @@ export const api = {
   },
 
   claimTaskReward: async (
-    userId: string,
+    userId: number,
     taskId: string,
   ): Promise<TaskClaimResponse> => {
     const response = await apiClient.post(`/tasks/${userId}/${taskId}/claim`);
@@ -64,7 +64,7 @@ export const api = {
   },
 
   claimDailyReward: async (
-    userId: string,
+    userId: number,
     day: number,
   ): Promise<DailyRewardClaimResponse> => {
     const response = await apiClient.post(

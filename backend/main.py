@@ -1,22 +1,37 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import router  # Make sure this import points to your routers.py file
+from app.core.database import redis_client
+from app.api import auth, game, tasks
 
 app = FastAPI()
 
-# 1. SETUP CORS (Crucial for React -> FastAPI communication)
+origins = [
+    "http://localhost:3000",  # Common React port
+    "http://localhost:5173",  # Common Vite port
+    "*"                       # Allow all (easiest for dev)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,       # Who can call the API
+    allow_credentials=True,      # Allow cookies/auth headers
+    allow_methods=["*"],         # Allow POST, GET, OPTIONS, PUT, DELETE
+    allow_headers=["*"],         # Allow "Content-Type", "Authorization"
 )
 
-# 2. INCLUDE ROUTER WITH PREFIX
-# This lines maps @router.post("/auth") -> http://localhost:8000/api/auth
-app.include_router(router, prefix="/api")
+# Include Routers with /api prefix
+app.include_router(auth.router, prefix="/api", tags=["Auth"])
+app.include_router(game.router, prefix="/api", tags=["Game"])
+app.include_router(tasks.router, prefix="/api", tags=["Tasks"])
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        await redis_client.ping()
+        print("Connected to Redis")
+    except Exception as e:
+        print(f"Redis Connection Error: {e}")
 
 @app.get("/")
-async def root():
-    return {"message": "Tap Bot API is running!"}
+def root():
+    return {"message": "API Running"}

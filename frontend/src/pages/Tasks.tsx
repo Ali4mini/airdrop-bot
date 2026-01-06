@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { UserTasksResponse } from "../types";
 
-export const Tasks = ({ userId }: { userId: string }) => {
+export const Tasks = ({ userId }: { userId: number }) => {
   // Accept userId as prop
   const [tasksData, setTasksData] = useState<UserTasksResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +81,29 @@ export const Tasks = ({ userId }: { userId: string }) => {
     );
   }
 
+  // Determine which daily reward should be active (the next unclaimed day)
+  const getNextActiveDay = () => {
+    if (!tasksData.daily_rewards || tasksData.daily_rewards.length === 0)
+      return null;
+
+    // Sort rewards by day to ensure proper order
+    const sortedRewards = [...tasksData.daily_rewards].sort(
+      (a, b) => a.day - b.day,
+    );
+
+    // Find the first unclaimed day
+    for (let i = 0; i < sortedRewards.length; i++) {
+      if (!sortedRewards[i].is_claimed) {
+        return sortedRewards[i].day;
+      }
+    }
+
+    // If all are claimed, return null (no active day)
+    return null;
+  };
+
+  const activeDay = getNextActiveDay();
+
   return (
     <div className="flex-1 pb-20 pt-6">
       <div className="flex flex-col items-center mb-8">
@@ -109,18 +132,16 @@ export const Tasks = ({ userId }: { userId: string }) => {
         </div>
 
         <div className="flex gap-2 overflow-x-auto px-4 pb-4 no-scrollbar">
-          {tasksData.daily_rewards.map((day) => {
-            // Logic to determine active day
+          {tasksData.daily_rewards.map((dayReward) => {
             const isCurrent =
-              !day.is_claimed &&
-              tasksData.daily_rewards[day.day - 2]?.is_claimed;
+              activeDay === dayReward.day && !dayReward.is_claimed;
 
             return (
               <div
-                key={day.day}
+                key={dayReward.day}
                 className={`flex-shrink-0 w-20 h-28 rounded-xl flex flex-col items-center justify-center gap-1 border relative overflow-hidden transition-all
                   ${
-                    day.is_claimed
+                    dayReward.is_claimed
                       ? "bg-green-500/20 border-green-500/50"
                       : isCurrent
                         ? "bg-gradient-to-b from-yellow-600/20 to-yellow-900/20 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
@@ -129,17 +150,21 @@ export const Tasks = ({ userId }: { userId: string }) => {
                 `}
               >
                 <span className="text-xs text-gray-400 font-bold uppercase">
-                  Day {day.day}
+                  Day {dayReward.day}
                 </span>
-                <span className="text-2xl">{day.day === 7 ? "🎁" : "🪙"}</span>
+                <span className="text-2xl">
+                  {dayReward.day === 7 ? "🎁" : "🪙"}
+                </span>
                 <span
-                  className={`text-[10px] font-bold ${day.is_claimed ? "text-green-400" : "text-white"}`}
+                  className={`text-[10px] font-bold ${dayReward.is_claimed ? "text-green-400" : "text-white"}`}
                 >
-                  {day.reward >= 1000 ? `${day.reward / 1000}K` : day.reward}
+                  {dayReward.reward >= 1000
+                    ? `${dayReward.reward / 1000}K`
+                    : dayReward.reward}
                 </span>
-                {!day.is_claimed && isCurrent && (
+                {!dayReward.is_claimed && isCurrent && (
                   <button
-                    onClick={() => handleDailyRewardClaim(day.day)}
+                    onClick={() => handleDailyRewardClaim(dayReward.day)}
                     className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] cursor-pointer"
                   >
                     <span className="text-yellow-400 text-xl font-bold">
@@ -147,7 +172,7 @@ export const Tasks = ({ userId }: { userId: string }) => {
                     </span>
                   </button>
                 )}
-                {day.is_claimed && (
+                {dayReward.is_claimed && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                     <span className="text-green-400 text-xl font-bold">✓</span>
                   </div>

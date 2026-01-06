@@ -12,7 +12,7 @@ import { Notification } from "./components/Notifications";
 import { LevelUpModal } from "./components/LevelUpModal";
 
 function AppContent() {
-  const { expand } = useTelegram();
+  const { user, expand } = useTelegram();
 
   useEffect(() => {
     expand();
@@ -34,7 +34,7 @@ function AppContent() {
       <div className="flex-1 overflow-y-auto pt-24 pb-32 px-4 z-10">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks" element={<Tasks userId={user.id} />} />
           <Route path="/friends" element={<Friends />} />
         </Routes>
       </div>
