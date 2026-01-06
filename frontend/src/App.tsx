@@ -10,6 +10,7 @@ import { Tasks } from "./pages/Tasks";
 import { Friends } from "./pages/Friends";
 import { Notification } from "./components/Notifications";
 import { LevelUpModal } from "./components/LevelUpModal";
+import { Wallet } from "./pages/Wallet";
 
 function AppContent() {
   const { user, expand } = useTelegram();
@@ -36,6 +37,7 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks userId={user.id} />} />
           <Route path="/friends" element={<Friends />} />
+          <Route path="/wallet" element={<Wallet />} />
         </Routes>
       </div>
 
