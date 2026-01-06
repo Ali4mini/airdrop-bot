@@ -1,4 +1,11 @@
 import axios from "axios";
+import type {
+  UserTasksResponse,
+  TaskUpdateResponse,
+  TaskClaimResponse,
+  DailyRewardClaimResponse,
+  CoinsResponse,
+} from "../types"; // Adjust path as needed
 
 const apiClient = axios.create({
   // If you are using Docker/Vite proxy, this might be "/api"
@@ -28,6 +35,46 @@ export const api = {
       user_id: userId,
       upgrade_type: upgradeType,
     });
+    return response.data;
+  },
+
+  // --- NEW TASK MANAGEMENT ENDPOINTS ---
+
+  getUserTasks: async (userId: string): Promise<UserTasksResponse> => {
+    const response = await apiClient.get(`/tasks/${userId}`);
+    return response.data;
+  },
+
+  completeTask: async (
+    userId: string,
+    taskId: string,
+  ): Promise<TaskUpdateResponse> => {
+    const response = await apiClient.post(
+      `/tasks/${userId}/${taskId}/complete`,
+    );
+    return response.data;
+  },
+
+  claimTaskReward: async (
+    userId: string,
+    taskId: string,
+  ): Promise<TaskClaimResponse> => {
+    const response = await apiClient.post(`/tasks/${userId}/${taskId}/claim`);
+    return response.data;
+  },
+
+  claimDailyReward: async (
+    userId: string,
+    day: number,
+  ): Promise<DailyRewardClaimResponse> => {
+    const response = await apiClient.post(
+      `/tasks/${userId}/daily-reward/${day}/claim`,
+    );
+    return response.data;
+  },
+
+  getUserCoins: async (userId: string): Promise<CoinsResponse> => {
+    const response = await apiClient.get(`/tasks/${userId}/coins`);
     return response.data;
   },
 };

@@ -1,8 +1,86 @@
 import { motion } from "framer-motion";
-import { TASKS_DATA, DAILY_REWARDS_DATA } from "../data/mocks"; // <--- Import Data
-// Note: In a real app, you would fetch this data in a useEffect
+import { useEffect, useState } from "react";
+import { api } from "../api/client";
+import type { UserTasksResponse } from "../types";
 
-export const Tasks = () => {
+export const Tasks = ({ userId }: { userId: string }) => {
+  // Accept userId as prop
+  const [tasksData, setTasksData] = useState<UserTasksResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [userId]);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getUserTasks(userId);
+      setTasksData(data);
+      setError(null);
+    } catch (err) {
+      setError("Failed to load tasks");
+      console.error("Error fetching tasks:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTaskComplete = async (taskId: string) => {
+    try {
+      await api.completeTask(userId, taskId);
+      // Refresh tasks after completion
+      fetchTasks();
+    } catch (err) {
+      console.error("Error completing task:", err);
+    }
+  };
+
+  const handleTaskClaim = async (taskId: string) => {
+    try {
+      await api.claimTaskReward(userId, taskId);
+      // Refresh tasks after claiming
+      fetchTasks();
+    } catch (err) {
+      console.error("Error claiming task reward:", err);
+    }
+  };
+
+  const handleDailyRewardClaim = async (day: number) => {
+    try {
+      await api.claimDailyReward(userId, day);
+      // Refresh tasks after claiming daily reward
+      fetchTasks();
+    } catch (err) {
+      console.error("Error claiming daily reward:", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 pb-20 pt-6 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 pb-20 pt-6 flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  if (!tasksData) {
+    return (
+      <div className="flex-1 pb-20 pt-6 flex items-center justify-center">
+        <div className="text-white">No tasks available</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 pb-20 pt-6">
       <div className="flex flex-col items-center mb-8">
@@ -21,7 +99,7 @@ export const Tasks = () => {
         </p>
       </div>
 
-      {/* 2. DAILY REWARDS */}
+      {/* DAILY REWARDS */}
       <div className="mb-8">
         <div className="flex justify-between items-center px-4 mb-3">
           <h2 className="font-bold text-lg">Daily Rewards</h2>
@@ -31,17 +109,18 @@ export const Tasks = () => {
         </div>
 
         <div className="flex gap-2 overflow-x-auto px-4 pb-4 no-scrollbar">
-          {DAILY_REWARDS_DATA.map((day) => {
-            // Logic to determine active day (mock logic)
+          {tasksData.daily_rewards.map((day) => {
+            // Logic to determine active day
             const isCurrent =
-              !day.isClaimed && DAILY_REWARDS_DATA[day.day - 2]?.isClaimed;
+              !day.is_claimed &&
+              tasksData.daily_rewards[day.day - 2]?.is_claimed;
 
             return (
               <div
                 key={day.day}
                 className={`flex-shrink-0 w-20 h-28 rounded-xl flex flex-col items-center justify-center gap-1 border relative overflow-hidden transition-all
                   ${
-                    day.isClaimed
+                    day.is_claimed
                       ? "bg-green-500/20 border-green-500/50"
                       : isCurrent
                         ? "bg-gradient-to-b from-yellow-600/20 to-yellow-900/20 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]"
@@ -54,11 +133,21 @@ export const Tasks = () => {
                 </span>
                 <span className="text-2xl">{day.day === 7 ? "🎁" : "🪙"}</span>
                 <span
-                  className={`text-[10px] font-bold ${day.isClaimed ? "text-green-400" : "text-white"}`}
+                  className={`text-[10px] font-bold ${day.is_claimed ? "text-green-400" : "text-white"}`}
                 >
                   {day.reward >= 1000 ? `${day.reward / 1000}K` : day.reward}
                 </span>
-                {day.isClaimed && (
+                {!day.is_claimed && isCurrent && (
+                  <button
+                    onClick={() => handleDailyRewardClaim(day.day)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] cursor-pointer"
+                  >
+                    <span className="text-yellow-400 text-xl font-bold">
+                      Claim
+                    </span>
+                  </button>
+                )}
+                {day.is_claimed && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                     <span className="text-green-400 text-xl font-bold">✓</span>
                   </div>
@@ -69,11 +158,11 @@ export const Tasks = () => {
         </div>
       </div>
 
-      {/* 3. TASK LIST */}
+      {/* TASK LIST */}
       <div className="px-4">
         <h2 className="font-bold text-lg mb-4">Task List</h2>
         <div className="flex flex-col gap-3">
-          {TASKS_DATA.map((task, index) => (
+          {tasksData.tasks.map((task, index) => (
             <motion.div
               key={task.id}
               initial={{ opacity: 0, y: 20 }}
@@ -103,6 +192,13 @@ export const Tasks = () => {
                 </span>
               ) : (
                 <button
+                  onClick={() => {
+                    if (task.status === "pending") {
+                      handleTaskComplete(task.id);
+                    } else if (task.status === "completed") {
+                      handleTaskClaim(task.id);
+                    }
+                  }}
                   className={`px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95
                   ${task.status === "pending" ? "bg-gray-700 text-gray-300" : "bg-white text-black hover:bg-yellow-400"}`}
                 >

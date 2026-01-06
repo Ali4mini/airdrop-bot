@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from .database import redis_client
 from .models import UserData, TapPayload, UpgradePayload
 import time 
+import json
 
 router = APIRouter()
 
@@ -14,8 +15,20 @@ UPGRADE_CONFIG = {
 }
 
 TASKS_DB = [
-    {"id": 1, "title": "Join Channel", "reward": 5000, "icon": "✈️", "status": "start"},
-    {"id": 2, "title": "Follow Twitter", "reward": 2500, "icon": "🐦", "status": "start"},
+    {"id": "task_1", "title": "Join our Telegram", "reward": 1000, "icon": "📱", "type": "social", "status": "pending"},
+    {"id": "task_2", "title": "Follow us on X", "icon": "🐦", "reward": 1500, "type": "social", "status": "pending"},
+    {"id": "task_3", "title": "Watch video", "icon": "📺", "reward": 2000, "type": "watch", "status": "pending"},
+    {"id": "task_4", "title": "Invite friends", "icon": "👥", "reward": 5000, "type": "referral", "status": "pending"},
+]
+
+DAILY_REWARDS_DB = [
+    {"day": 1, "reward": 1000, "is_claimed": False},
+    {"day": 2, "reward": 2000, "is_claimed": False},
+    {"day": 3, "reward": 3000, "is_claimed": False},
+    {"day": 4, "reward": 4000, "is_claimed": False},
+    {"day": 5, "reward": 5000, "is_claimed": False},
+    {"day": 6, "reward": 6000, "is_claimed": False},
+    {"day": 7, "reward": 10000, "is_claimed": False},
 ]
 
 LEVELS = [
@@ -34,9 +47,50 @@ def calculate_upgrade_cost(type: str, current_level: int):
     # Calculate cost: base * (level ^ coeff)
     return int(config["base_cost"] * (current_level ** config["coeff"]))
 
-# --- AUTHENTICATION ---
+def get_user_tasks_key(user_id: str) -> str:
+    return f"user:{user_id}:tasks"
 
-router = APIRouter()
+def get_user_daily_rewards_key(user_id: str) -> str:
+    return f"user:{user_id}:daily_rewards"
+
+def get_user_stats_key(user_id: str) -> str:
+    return f"user:{user_id}:stats"
+
+def get_user_coins_key(user_id: str) -> str:
+    return f"user:{user_id}:coins"
+
+async def get_user_coins(user_id: str) -> int:
+    coins = await redis_client.get(get_user_coins_key(user_id))
+    return int(coins) if coins else 0
+
+async def add_coins_to_user(user_id: str, amount: int) -> int:
+    current_coins = await get_user_coins(user_id)
+    new_coins = current_coins + amount
+    await redis_client.set(get_user_coins_key(user_id), new_coins)
+    return new_coins
+
+async def initialize_user_tasks_data(user_id: str):
+    """Initialize user tasks data if it doesn't exist"""
+    tasks_key = get_user_tasks_key(user_id)
+    daily_rewards_key = get_user_daily_rewards_key(user_id)
+    stats_key = get_user_stats_key(user_id)
+    
+    # Initialize tasks if not exists
+    if not await redis_client.exists(tasks_key):
+        for task in TASKS_DB:
+            await redis_client.hset(tasks_key, task["id"], json.dumps(task))
+    
+    # Initialize daily rewards if not exists
+    if not await redis_client.exists(daily_rewards_key):
+        for reward in DAILY_REWARDS_DB:
+            await redis_client.hset(daily_rewards_key, str(reward["day"]), json.dumps(reward))
+    
+    # Initialize stats if not exists
+    if not await redis_client.exists(stats_key):
+        await redis_client.hset(stats_key, "current_streak", 0)
+        await redis_client.hset(stats_key, "last_check_in", "null")
+
+# --- AUTHENTICATION ---
 
 # ... (Keep your UPGRADE_CONFIG and TASKS_DB here) ...
 UPGRADE_CONFIG = {
@@ -57,7 +111,6 @@ LEVELS = [
     {"min": 0,     "val": 1,  "regen": 1, "lvl": 1},
 ]
 
-
 # --- LOGIN (Keep this, it's correct) ---
 @router.post("/auth")
 async def login(user: UserData):
@@ -72,6 +125,9 @@ async def login(user: UserData):
             "last_sync_time": current_time
         }
         await redis_client.hset(user_key, mapping=initial_state)
+    
+    # Initialize task data for the user
+    await initialize_user_tasks_data(user.id)
     
     data = await redis_client.hgetall(user_key)
     
@@ -164,6 +220,7 @@ async def sync_taps(payload: TapPayload):
         "rechargeSpeedLevel": int(final_data.get("recharge_speed_level", 1)),
         "level": int(final_data.get("level", 1))
     }
+
 # --- BUY UPGRADE ---
 @router.post("/upgrade")
 async def buy_upgrade(payload: UpgradePayload):
@@ -226,9 +283,140 @@ async def buy_upgrade(payload: UpgradePayload):
         "maxEnergy": int(updated_data.get("max_energy", 1000))
     }
 
-# --- TASKS ---
+# --- TASKS ENDPOINTS ---
+
 @router.get("/tasks/{user_id}")
-async def get_tasks(user_id: int):
-    # TODO: Fetch completed task IDs from Redis `smembers user:{id}:tasks`
-    # completed_ids = await redis_client.smembers(f"user:{user_id}:tasks")
-    return TASKS_DB
+async def get_user_tasks(user_id: str):
+    await initialize_user_tasks_data(user_id)
+    
+    # Get tasks
+    tasks_data = await redis_client.hgetall(get_user_tasks_key(user_id))
+    tasks = []
+    for task_id, task_json in tasks_data.items():
+        task_dict = json.loads(task_json)
+        tasks.append(task_dict)
+    
+    # Get daily rewards
+    daily_rewards_data = await redis_client.hgetall(get_user_daily_rewards_key(user_id))
+    daily_rewards = []
+    for day_str, reward_json in daily_rewards_data.items():
+        reward_dict = json.loads(reward_json)
+        daily_rewards.append(reward_dict)
+    
+    # Sort daily rewards by day
+    daily_rewards.sort(key=lambda x: x["day"])
+    
+    # Get stats
+    stats = await redis_client.hgetall(get_user_stats_key(user_id))
+    current_streak = int(stats.get("current_streak", 0))
+    last_check_in = stats.get("last_check_in", None)
+    
+    # Get user coins
+    coins = await get_user_coins(user_id)
+    
+    return {
+        "daily_rewards": daily_rewards,
+        "tasks": tasks,
+        "current_streak": current_streak,
+        "last_check_in": last_check_in,
+        "coins": coins
+    }
+
+@router.post("/tasks/{user_id}/{task_id}/complete")
+async def complete_task(user_id: str, task_id: str):
+    await initialize_user_tasks_data(user_id)
+    
+    tasks_key = get_user_tasks_key(user_id)
+    task_data = await redis_client.hget(tasks_key, task_id)
+    
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task = json.loads(task_data)
+    
+    if task["status"] == "claimed":
+        raise HTTPException(status_code=400, detail="Task already completed")
+    
+    # Update task status to completed
+    task["status"] = "completed"
+    await redis_client.hset(tasks_key, task_id, json.dumps(task))
+    
+    return {"success": True, "task": task}
+
+@router.post("/tasks/{user_id}/{task_id}/claim")
+async def claim_task_reward(user_id: str, task_id: str):
+    await initialize_user_tasks_data(user_id)
+    
+    tasks_key = get_user_tasks_key(user_id)
+    task_data = await redis_client.hget(tasks_key, task_id)
+    
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task = json.loads(task_data)
+    
+    if task["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Task not completed yet")
+    
+    # Add coins to user
+    new_coins = await add_coins_to_user(user_id, task["reward"])
+    
+    # Update task status to claimed
+    task["status"] = "claimed"
+    await redis_client.hset(tasks_key, task_id, json.dumps(task))
+    
+    return {
+        "success": True,
+        "reward": task["reward"],
+        "new_coins": new_coins,
+        "task": task
+    }
+
+@router.post("/tasks/{user_id}/daily-reward/{day}/claim")
+async def claim_daily_reward(user_id: str, day: int):
+    await initialize_user_tasks_data(user_id)
+    
+    daily_rewards_key = get_user_daily_rewards_key(user_id)
+    reward_data = await redis_client.hget(daily_rewards_key, str(day))
+    
+    if not reward_data:
+        raise HTTPException(status_code=404, detail="Daily reward not found")
+    
+    reward = json.loads(reward_data)
+    
+    if reward["is_claimed"]:
+        raise HTTPException(status_code=400, detail="Reward already claimed")
+    
+    # Check if it's the current day in the streak
+    stats_key = get_user_stats_key(user_id)
+    current_streak = int(await redis_client.hget(stats_key, "current_streak") or 0)
+    
+    # For simplicity, allow claiming any unclaimed day
+    # In a real app, you might want to enforce sequential claiming
+    if day != current_streak + 1 and current_streak != 0:
+        # Allow claiming any day for now, but you can add validation here
+        pass
+    
+    # Mark as claimed
+    reward["is_claimed"] = True
+    await redis_client.hset(daily_rewards_key, str(day), json.dumps(reward))
+    
+    # Add coins to user
+    new_coins = await add_coins_to_user(user_id, reward["reward"])
+    
+    # Update streak if claiming the next day
+    if day == current_streak + 1:
+        await redis_client.hset(stats_key, "current_streak", day)
+        await redis_client.hset(stats_key, "last_check_in", str(int(time.time())))
+    
+    return {
+        "success": True,
+        "reward": reward["reward"],
+        "new_coins": new_coins,
+        "daily_reward": reward
+    }
+
+@router.get("/tasks/{user_id}/coins")
+async def get_user_coins_endpoint(user_id: str):
+    coins = await get_user_coins(user_id)
+    return {"coins": coins}

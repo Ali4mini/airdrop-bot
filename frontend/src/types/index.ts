@@ -19,6 +19,7 @@ export interface GameState {
   multitapLevel: number; // mapped from multitap_level
   energyLimitLevel: number; // mapped from energy_limit_level
   rechargeSpeedLevel: number; // mapped from recharge_speed_level
+  tapBotLevel?: number;
 }
 
 // --- Boost/Upgrade Types ---
@@ -29,6 +30,7 @@ export interface UpgradeResponse extends Partial<GameState> {
   // The backend might return only the updated fields,
   // so we make them partial or include specific ones
   points: number;
+  maxEnergy: number;
 }
 
 // --- Levels & Progression ---
@@ -50,14 +52,62 @@ export interface ClickAnimation {
 }
 
 // --- Social & Tasks ---
-export type TaskStatus = "start" | "pending" | "claimed";
+export type TaskStatus = "pending" | "completed" | "claimed";
 
 export interface Task {
-  id: number;
+  id: string;
   title: string;
-  reward: number;
   icon: string;
+  reward: number;
   status: TaskStatus;
+  type: string; // 'social', 'watch', 'referral', etc.
+}
+
+export interface DailyReward {
+  day: number;
+  reward: number;
+  is_claimed: boolean;
+}
+
+export interface UserTasksResponse {
+  daily_rewards: DailyReward[];
+  tasks: Task[];
+  current_streak: number;
+  last_check_in: string | null;
+  coins: number;
+}
+
+export interface TaskUpdateResponse {
+  success: boolean;
+  task: Task;
+}
+
+export interface TaskClaimResponse {
+  success: boolean;
+  reward: number;
+  new_coins: number;
+  task: Task;
+}
+
+export interface DailyRewardClaimResponse {
+  success: boolean;
+  reward: number;
+  new_coins: number;
+  daily_reward: DailyReward;
+}
+
+export interface CoinsResponse {
+  coins: number;
+}
+
+export interface TapPayload {
+  user_id: number;
+  taps: number;
+}
+
+export interface UpgradePayload {
+  user_id: number;
+  upgrade_type: UpgradeType;
 }
 
 export interface Friend {

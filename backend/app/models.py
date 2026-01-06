@@ -19,6 +19,7 @@ class GameState(BaseModel):
     multitap_level: int = 1
     energy_limit_level: int = 1
     recharge_speed_level: int = 1
+    tap_bot_level: int = 0
 
 class UpgradePayload(BaseModel):
     user_id: int
@@ -26,11 +27,43 @@ class UpgradePayload(BaseModel):
 
 # --- Tasks ---
 class Task(BaseModel):
-    id: int
+    id: str  # Changed from int to str to match the new system
     title: str
-    reward: int
     icon: str
-    status: str # 'start', 'pending', 'claimed'
+    reward: int
+    status: str # 'pending', 'completed', 'claimed' - updated to match new system
+    type: str  # Added type field for task categorization
+
+class DailyReward(BaseModel):
+    day: int
+    reward: int
+    is_claimed: bool
+
+class UserTasksResponse(BaseModel):
+    daily_rewards: list[DailyReward]
+    tasks: list[Task]
+    current_streak: int
+    last_check_in: Optional[str] = None
+    coins: int
+
+class TaskUpdateResponse(BaseModel):
+    success: bool
+    task: Task
+
+class TaskClaimResponse(BaseModel):
+    success: bool
+    reward: int
+    new_coins: int
+    task: Task
+
+class DailyRewardClaimResponse(BaseModel):
+    success: bool
+    reward: int
+    new_coins: int
+    daily_reward: DailyReward
+
+class CoinsResponse(BaseModel):
+    coins: int
 
 # --- Payload for Syncing Taps ---
 class TapPayload(BaseModel):
