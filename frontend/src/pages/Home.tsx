@@ -29,28 +29,38 @@ export const Home = () => {
     [],
   );
 
-  // 1. STATE REFS (These allow us to read state inside setInterval without restarting it)
+  // 1. STATE REFS (Crucial for sync logic inside setInterval)
   const unsyncedTaps = useRef(0);
   const lastTapRef = useRef<number>(0);
   const energyRef = useRef(energy);
+
+  // [FIX START] Add pointsRef
+  const pointsRef = useRef(points);
+  // [FIX END]
+
   const { openLevelUp } = useUIStore();
 
   // Track previous level to detect changes
   const prevLevelRef = useRef<string>(levelName);
 
   useEffect(() => {
-    // If level changed AND it's not the initial load (empty string or same value)
+    // If level changed AND it's not the initial load
     if (prevLevelRef.current && prevLevelRef.current !== levelName) {
       openLevelUp(levelName);
     }
-    // Update ref
     prevLevelRef.current = levelName;
   }, [levelName, openLevelUp]);
 
-  // Keep energyRef in sync with real energy
+  // Keep refs in sync with real state
   useEffect(() => {
     energyRef.current = energy;
   }, [energy]);
+
+  // [FIX START] Sync pointsRef
+  useEffect(() => {
+    pointsRef.current = points;
+  }, [points]);
+  // [FIX END]
 
   // 2. Initial Login
   useEffect(() => {
@@ -80,12 +90,14 @@ export const Home = () => {
           const isActive = now - lastTapRef.current < 1000;
 
           if (isActive) {
-            // IF ACTIVE: Keep our local energy (via the Ref).
-            // This prevents the "Jump" because local math is smoother than server sync.
-            // We only take points/levels from the server.
+            // [FIXED LOGIC]
+            // If user is Active: We trust the server for hidden upgrades/logic,
+            // BUT we preserve our Local Energy AND Local Points.
+            // This prevents the visual "jump back" due to network lag.
             setGameState({
               ...serverState,
-              energy: energyRef.current, // Use the REF value, not the stale closure value
+              energy: energyRef.current, // Use local energy
+              points: pointsRef.current, // Use local points
             });
           } else {
             // IF IDLE: Trust the server fully to fix any drift.
@@ -98,7 +110,7 @@ export const Home = () => {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [user?.id, setGameState]); // NO 'energy' dependency here!
+  }, [user?.id, setGameState]);
 
   // 4. Passive Regeneration Loop
   useEffect(() => {
@@ -116,6 +128,7 @@ export const Home = () => {
     if (now - lastTapRef.current < 40) return; // Debounce
     lastTapRef.current = now;
 
+    // Prevent tapping if insufficient energy (Frontend validation)
     if (energy < tapValue) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
