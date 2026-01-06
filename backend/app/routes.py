@@ -57,61 +57,44 @@ LEVELS = [
     {"min": 0,     "val": 1,  "regen": 1, "lvl": 1},
 ]
 
+
+# --- LOGIN (Keep this, it's correct) ---
 @router.post("/auth")
 async def login(user: UserData):
     user_key = f"user:{user.id}"
     exists = await redis_client.exists(user_key)
-    
     current_time = int(time.time())
 
     if not exists:
-        # NEW USER: Start with Full Energy
         initial_state = {
-            "points": 0,
-            "energy": 1000, 
-            "max_energy": 1000,
-            "level": 1,
-            "multitap_level": 1,
-            "energy_limit_level": 1,
-            "recharge_speed_level": 1,
-            "last_sync_time": current_time # <--- Track time
+            "points": 0, "energy": 1000, "max_energy": 1000, "level": 1,
+            "multitap_level": 1, "energy_limit_level": 1, "recharge_speed_level": 1,
+            "last_sync_time": current_time
         }
         await redis_client.hset(user_key, mapping=initial_state)
     
-    # FETCH DATA
     data = await redis_client.hgetall(user_key)
     
-    # --- OFFLINE REGENERATION LOGIC ---
+    # REGEN LOGIC FOR LOGIN
     stored_energy = int(data.get("energy", 1000))
     max_energy = int(data.get("max_energy", 1000))
     last_sync = int(data.get("last_sync_time", current_time))
-    
-    # 1. Calculate how much to regen
     recharge_level = int(data.get("recharge_speed_level", 1))
     
-    # Base regen (from league) + Recharge Boost
-    # (Simplified: assume base is 1 for now)
-    regen_rate = 1 + (recharge_level - 1) 
-    
+    regen_rate = 1 + (recharge_level - 1)
     seconds_passed = current_time - last_sync
-    
-    # 2. Add gained energy (Capped at Max)
     energy_gained = seconds_passed * regen_rate
+    
     new_energy = min(max_energy, stored_energy + energy_gained)
     
-    # 3. Save new energy to Redis immediately so it persists
     if new_energy != stored_energy:
-        await redis_client.hset(user_key, mapping={
-            "energy": new_energy,
-            "last_sync_time": current_time
-        })
-    # ----------------------------------
+        await redis_client.hset(user_key, mapping={"energy": new_energy, "last_sync_time": current_time})
 
     return {
         "user": user,
         "gameState": {
             "points": int(data.get("points", 0)),
-            "energy": new_energy, # Return the REFILLED energy
+            "energy": new_energy,
             "maxEnergy": max_energy,
             "level": int(data.get("level", 1)),
             "multitapLevel": int(data.get("multitap_level", 1)),
@@ -121,21 +104,32 @@ async def login(user: UserData):
         }
     }
 
+# --- FIX: SYNC TAPS WITH REGEN ---
 @router.post("/tap")
 async def sync_taps(payload: TapPayload):
     user_key = f"user:{payload.user_id}"
+    current_time = int(time.time())
     
     data = await redis_client.hgetall(user_key)
     if not data:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Update timestamp
-    current_time = int(time.time())
-
+    # 1. Load Data
     multitap_level = int(data.get("multitap_level", 1))
-    current_energy = int(data.get("energy", 0))
+    stored_energy = int(data.get("energy", 0))
+    max_energy = int(data.get("max_energy", 1000))
+    last_sync = int(data.get("last_sync_time", current_time))
+    recharge_level = int(data.get("recharge_speed_level", 1))
     
-    # Handle missing Level config gracefully
+    # 2. CALCULATE PASSIVE REGEN FIRST
+    # We must give the user credit for the time passed BEFORE we subtract their taps
+    regen_rate = 1 + (recharge_level - 1)
+    seconds_passed = current_time - last_sync
+    
+    # Add regen, but don't overflow max_energy
+    energy_with_regen = min(max_energy, stored_energy + (seconds_passed * regen_rate))
+    
+    # 3. CALCULATE TAP COST
     current_level = int(data.get("level", 1))
     base_val = 1
     for l in LEVELS: 
@@ -146,19 +140,19 @@ async def sync_taps(payload: TapPayload):
     points_gained = payload.taps * points_per_tap
     energy_cost = payload.taps * points_per_tap 
     
-    new_energy = max(0, current_energy - energy_cost)
+    # 4. SUBTRACT COST FROM (REGEN + STORED)
+    new_energy = max(0, energy_with_regen - energy_cost)
     
+    # 5. SAVE
     pipe = redis_client.pipeline()
     pipe.hincrby(user_key, "points", points_gained)
-    
-    # Update Energy AND Time
     pipe.hset(user_key, mapping={
-        "energy": new_energy,
-        "last_sync_time": current_time # <--- Important!
+        "energy": int(new_energy),
+        "last_sync_time": current_time # Update sync time so we don't double-count next time
     })
-    
     await pipe.execute()
     
+    # 6. RETURN
     final_data = await redis_client.hgetall(user_key)
     
     return {
