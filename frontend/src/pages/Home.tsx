@@ -8,6 +8,7 @@ import { Boost } from "./Boost";
 
 export const Home = () => {
   const [currentView, setCurrentView] = useState<"game" | "boost">("game");
+
   const {
     points,
     energy,
@@ -26,64 +27,83 @@ export const Home = () => {
   const [clicks, setClicks] = useState<{ id: number; x: number; y: number }[]>(
     [],
   );
-  const unsyncedTaps = useRef(0);
 
-  // Sync logic (Keep this as is)
+  // 1. STATE REFS (These allow us to read state inside setInterval without restarting it)
+  const unsyncedTaps = useRef(0);
+  const lastTapRef = useRef<number>(0);
+  const energyRef = useRef(energy);
+
+  // Keep energyRef in sync with real energy
   useEffect(() => {
-    if (user?.id)
+    energyRef.current = energy;
+  }, [energy]);
+
+  // 2. Initial Login
+  useEffect(() => {
+    if (user?.id) {
       api
         .login(user)
         .then((data) => setGameState(data.gameState))
-        .catch(console.error);
-  }, [user?.id]);
+        .catch((e) => console.error("Login Error:", e));
+    }
+  }, [user?.id, setGameState]);
 
-  // SYNC LOOP: Send accumulated taps every 3 seconds
+  // 3. THE FIXED SYNC LOOP
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (user && unsyncedTaps.current > 0) {
+      // Check if we have taps to send
+      if (user?.id && unsyncedTaps.current > 0) {
         const tapsToSend = unsyncedTaps.current;
 
         try {
-          // 1. Send to server
           const serverState = await api.syncTaps(user.id, tapsToSend);
 
-          // 2. Subtract ONLY the amount we just successfully sent
-          // (In case the user tapped more while the request was in flight)
+          // Mark sent taps as done
           unsyncedTaps.current -= tapsToSend;
 
-          // 3. Update the Store with the "Truth" from the server
-          // This keeps points, energy, and levels in perfect sync
-          setGameState(serverState);
+          // CHECK: Is the user tapping right now? (Active Mode)
+          const now = Date.now();
+          const isActive = now - lastTapRef.current < 1000;
 
-          console.log("Synced successfully:", serverState.points);
+          if (isActive) {
+            // IF ACTIVE: Keep our local energy (via the Ref).
+            // This prevents the "Jump" because local math is smoother than server sync.
+            // We only take points/levels from the server.
+            setGameState({
+              ...serverState,
+              energy: energyRef.current, // Use the REF value, not the stale closure value
+            });
+          } else {
+            // IF IDLE: Trust the server fully to fix any drift.
+            setGameState(serverState);
+          }
         } catch (error) {
-          console.error("Failed to sync taps:", error);
-          // We do NOT subtract taps here, so they will be retried in the next loop
+          console.error("Sync Failed:", error);
         }
       }
-    }, 300); // 3 seconds is standard for Telegram bots
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [user, setGameState]);
+  }, [user?.id, setGameState]); // NO 'energy' dependency here!
 
+  // 4. Passive Regeneration Loop
   useEffect(() => {
-    const timer = setInterval(() => restoreEnergy(energyRegen), 1000);
+    const timer = setInterval(() => {
+      if (energy < maxEnergy) {
+        restoreEnergy(energyRegen);
+      }
+    }, 1000);
     return () => clearInterval(timer);
-  }, [restoreEnergy, energyRegen]);
+  }, [restoreEnergy, energyRegen, energy, maxEnergy]);
 
-  const lastTapRef = useRef<number>(0);
-
+  // 5. Tap Handler
   const handleTap = (e: React.PointerEvent<HTMLDivElement>) => {
-    // 2. THE FIX: Software Debounce
-    // If the last tap was less than 40ms ago, ignore this one.
-    // This kills "ghost" clicks instantly.
     const now = Date.now();
-    if (now - lastTapRef.current < 40) return;
+    if (now - lastTapRef.current < 40) return; // Debounce
     lastTapRef.current = now;
 
     if (energy < tapValue) return;
 
-    // ... Rest of your existing logic ...
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -102,20 +122,20 @@ export const Home = () => {
   };
 
   return (
-    // MAIN WRAPPER: bg-transparent lets your custom background shine
     <div className="flex-1 flex flex-col items-center pt-8 relative overflow-hidden bg-transparent text-white">
       <AnimatePresence mode="wait">
         {currentView === "game" ? (
           <motion.div
             key="game"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="w-full flex flex-col items-center z-10"
           >
-            {/* STATS: Semi-transparent 'glass' look */}
+            {/* STATS HEADER */}
             <div className="grid grid-cols-3 gap-2 w-full max-w-sm px-4 mb-8">
               <StatBox label="Profit/Hr" value="+12.5k" />
+
               <div className="bg-black/30 backdrop-blur-md rounded-xl p-2 border border-white/10 flex flex-col items-center relative overflow-hidden shadow-xl">
                 <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest">
                   League
@@ -128,6 +148,7 @@ export const Home = () => {
                   style={{ width: `${progress}%` }}
                 />
               </div>
+
               <StatBox label="Recharge" value={`+${energyRegen}/s`} isEnergy />
             </div>
 
@@ -139,13 +160,12 @@ export const Home = () => {
               </span>
             </div>
 
-            {/* COIN & FLOATING NUMBERS CONTAINER */}
+            {/* COIN */}
             <div className="flex-grow flex items-center justify-center mb-8 relative w-full pointer-events-none">
               <div className="pointer-events-auto">
                 <Coin onTap={handleTap} />
               </div>
 
-              {/* FLOATING TEXT (Positioned absolute within this container) */}
               <AnimatePresence>
                 {clicks.map((c) => (
                   <motion.span
@@ -162,7 +182,7 @@ export const Home = () => {
               </AnimatePresence>
             </div>
 
-            {/* BOTTOM ENERGY & BOOST */}
+            {/* BOTTOM NAV */}
             <div className="w-full max-w-sm px-6 mb-8 mt-auto">
               <div className="flex justify-between items-end mb-2">
                 <div className="flex flex-col">
@@ -189,7 +209,10 @@ export const Home = () => {
               <div className="w-full h-3 bg-black/40 rounded-full border border-white/10 overflow-hidden backdrop-blur-sm">
                 <motion.div
                   className="h-full bg-gradient-to-r from-yellow-600 to-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.4)]"
-                  animate={{ width: `${(energy / maxEnergy) * 100}%` }}
+                  animate={{
+                    width: `${Math.min(100, (energy / maxEnergy) * 100)}%`,
+                  }}
+                  transition={{ type: "tween", ease: "linear", duration: 0.2 }}
                 />
               </div>
             </div>
@@ -202,7 +225,6 @@ export const Home = () => {
   );
 };
 
-// Reusable StatBox with transparency
 const StatBox = ({ label, value, isEnergy }: any) => (
   <div className="bg-black/30 backdrop-blur-md rounded-xl p-2 border border-white/10 flex flex-col items-center shadow-xl">
     <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest">
