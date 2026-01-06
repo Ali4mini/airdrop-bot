@@ -29,6 +29,7 @@ services:
       - TELEGRAM_BOT_TOKEN=your_token_here
     volumes:
       - ./backend/:/app
+      - /app/.venv
     depends_on:
       - redis
     restart: always
