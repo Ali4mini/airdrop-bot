@@ -4,6 +4,7 @@ import { useGameStore } from "../store/gameStore";
 import { useTelegram } from "../hooks/useTelegram";
 import { api } from "../api/client";
 import type { UpgradeType } from "../types"; // Ensure this is defined in types/index.ts
+import { useUIStore } from "../store/uiStore";
 
 export const Boost = ({ onBack }: { onBack: () => void }) => {
   const {
@@ -15,6 +16,7 @@ export const Boost = ({ onBack }: { onBack: () => void }) => {
   } = useGameStore();
 
   const { user } = useTelegram();
+  const { showNotification } = useUIStore();
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   // --- PRICING FORMULA (MUST MATCH BACKEND) ---
@@ -39,6 +41,7 @@ export const Boost = ({ onBack }: { onBack: () => void }) => {
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
       }
+      showNotification("Not enough points! Keep tapping.", "error");
       return;
     }
 
@@ -55,11 +58,13 @@ export const Boost = ({ onBack }: { onBack: () => void }) => {
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
       }
+      showNotification("Upgrade Successful! Level Up.", "success");
     } catch (error) {
       console.error("Upgrade failed:", error);
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
       }
+      showNotification("Connection Failed. Try again.", "error");
     } finally {
       setProcessingId(null);
     }

@@ -8,6 +8,7 @@ import { Background } from "./components/Background"; // <--- Import this
 import { Home } from "./pages/Home";
 import { Tasks } from "./pages/Tasks";
 import { Friends } from "./pages/Friends";
+import { Notification } from "./components/Notifications";
 
 function AppContent() {
   const { expand } = useTelegram();
@@ -21,6 +22,8 @@ function AppContent() {
     <div className="flex flex-col h-screen bg-transparent text-white font-sans">
       {/* 0. DYNAMIC BACKGROUND */}
       <Background />
+
+      <Notification />
 
       {/* 1. FIXED HEADER */}
       <Header />
