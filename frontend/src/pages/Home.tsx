@@ -75,38 +75,43 @@ export const Home = () => {
   // 3. THE FIXED SYNC LOOP
   useEffect(() => {
     const interval = setInterval(async () => {
-      // Check if we have taps to send
-      if (user?.id && unsyncedTaps.current > 0) {
-        const tapsToSend = unsyncedTaps.current;
+      // We capture the current queue size
+      const tapsToSend = unsyncedTaps.current;
 
+      // Only send if we have an ID (logged in)
+      if (user?.id && tapsToSend > 0) {
         try {
           const serverState = await api.syncTaps(user.id, tapsToSend);
 
-          // Mark sent taps as done
+          // Reset queue
           unsyncedTaps.current -= tapsToSend;
 
-          // CHECK: Is the user tapping right now? (Active Mode)
           const now = Date.now();
-          const isActive = now - lastTapRef.current < 1000;
+          // [FIX] More robust Active Check
+          // 1. Increase timeout to 3000ms to cover slow tappers or network jitter
+          // 2. OR: If we just sent taps, we are definitely active.
+          const isTapping = now - lastTapRef.current < 3000;
+          const justSynced = tapsToSend > 0;
 
-          if (isActive) {
-            // [FIXED LOGIC]
-            // If user is Active: We trust the server for hidden upgrades/logic,
-            // BUT we preserve our Local Energy AND Local Points.
-            // This prevents the visual "jump back" due to network lag.
+          const shouldProtectLocalState = isTapping || justSynced;
+
+          if (shouldProtectLocalState) {
             setGameState({
               ...serverState,
-              energy: energyRef.current, // Use local energy
-              points: pointsRef.current, // Use local points
+              // Keep Local values to prevent Jumps
+              energy: energyRef.current,
+              points: pointsRef.current,
             });
           } else {
-            // IF IDLE: Trust the server fully to fix any drift.
+            // Only strictly sync if user has been idle for 3+ seconds
             setGameState(serverState);
           }
         } catch (error) {
           console.error("Sync Failed:", error);
         }
       }
+      // [OPTIONAL] Even if tapsToSend is 0, we might want to sync periodically?
+      // For now, let's leave it to only sync when tapping to save server load.
     }, 2000);
 
     return () => clearInterval(interval);
