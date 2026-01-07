@@ -1,22 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { api } from "../api/client";
 
-// Mock Data
-const FRIENDS = [
-  { id: 1, name: "Alex T.", level: 4, earned: 50000, avatar: "🦁" },
-  { id: 2, name: "Sarah J.", level: 2, earned: 12500, avatar: "🦊" },
-  { id: 3, name: "Mike R.", level: 1, earned: 2500, avatar: "🐶" },
-];
-
-export const Friends = () => {
+export const Friends = ({ userId }: { userId: number }) => {
+  // Accept userId as prop
+  const [referralInfo, setReferralInfo] = useState<{
+    referral_code: string;
+    link: string;
+  } | null>(null);
+  const [friends, setFriends] = useState<FriendInfo[]>([]);
   const [copied, setCopied] = useState(false);
-  const link = "https://t.me/my_bot?start=12345";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  interface FriendInfo {
+    id: number;
+    name: string;
+    level: number;
+    earned: number;
+    avatar: string;
+  }
+
+  useEffect(() => {
+    const fetchReferralData = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getReferralInfo(userId);
+        setReferralInfo(data.referral_info);
+        setFriends(data.friends);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching referral data:", err);
+        setError("Failed to load referral data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (userId) {
+      fetchReferralData();
+    }
+  }, [userId]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(link);
+    if (!referralInfo?.link) {
+      console.error("Referral link not available");
+      return;
+    }
+    navigator.clipboard.writeText(referralInfo.link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleInviteTelegram = () => {
+    if (!referralInfo?.link) {
+      console.error("Referral link not available");
+      return;
+    }
+    // Opens the bot with the start parameter in Telegram
+    window.open(referralInfo.link, "_blank");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 pb-24 pt-6 px-4 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 pb-24 pt-6 px-4 flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 pb-24 pt-6 px-4">
@@ -84,17 +143,17 @@ export const Friends = () => {
       {/* 3. LIST OF FRIENDS */}
       <div className="mb-4">
         <h2 className="font-bold text-lg mb-4 text-white">
-          List of your friends ({FRIENDS.length})
+          List of your friends ({friends.length})
         </h2>
 
-        {FRIENDS.length === 0 ? (
+        {friends.length === 0 ? (
           <div className="text-center py-10 opacity-50 bg-[#1c1c1e] rounded-xl border border-dashed border-gray-700">
             <span className="text-4xl block mb-2">😢</span>
             You haven't invited anyone yet
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {FRIENDS.map((friend, i) => (
+            {friends.map((friend, i) => (
               <motion.div
                 key={friend.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -125,22 +184,28 @@ export const Friends = () => {
       </div>
 
       {/* 4. FIXED BOTTOM ACTIONS */}
-      {/* We add a fixed container at the bottom (above nav) for the Invite Buttons */}
       <div className="fixed bottom-24 left-0 w-full px-4 z-20">
         <div className="flex gap-2">
-          {/* Invite Button (Big) */}
+          {/* Invite Button (Big) - Now triggers Telegram sharing */}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            className="flex-1 bg-white text-black font-black text-lg py-4 mb-4 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:bg-gray-100 transition-colors"
+            onClick={handleInviteTelegram} // Use Telegram-specific invite
+            disabled={!referralInfo} // Disable if referral info isn't ready
+            className={`flex-1 ${
+              !referralInfo ? "bg-gray-500" : "bg-white hover:bg-gray-100"
+            } text-black font-black text-lg py-4 mb-4 rounded-2xl shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-colors`}
           >
-            Invite a friend
+            {!referralInfo ? "Loading..." : "Invite via Telegram"}
           </motion.button>
 
           {/* Copy Button (Small) */}
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={handleCopy}
-            className="w-16 mb-4 bg-[#1c1c1e] rounded-2xl flex items-center justify-center border border-white/10"
+            disabled={!referralInfo} // Disable if referral info isn't ready
+            className={`w-16 mb-4 ${
+              !referralInfo ? "bg-gray-700" : "bg-[#1c1c1e]"
+            } rounded-2xl flex items-center justify-center border border-white/10`}
           >
             {copied ? (
               <span className="text-green-500 text-xl">✓</span>

@@ -69,7 +69,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />
-          <Route path="/friends" element={<Friends />} />
+          <Route path="/friends" element={<Friends userId={user.id} />} />
           <Route path="/wallet" element={<Wallet />} />
         </Routes>
       </div>

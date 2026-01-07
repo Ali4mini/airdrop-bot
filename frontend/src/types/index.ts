@@ -117,3 +117,23 @@ export interface Friend {
   earned: number;
   avatar?: string;
 }
+
+// --- Referral Types ---
+export interface ReferralInfo {
+  referral_code: string;
+  link: string;
+}
+
+export interface FriendInfo {
+  id: number;
+  name: string;
+  level: number;
+  earned: number;
+  avatar: string;
+}
+
+export interface ReferralResponse {
+  referral_info: ReferralInfo;
+  friends: FriendInfo[];
+  total_earned: number;
+}

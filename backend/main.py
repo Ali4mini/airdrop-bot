@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import redis_client
-from app.api import auth, game, tasks
+from app.api import auth, game, tasks, referral
 
 app = FastAPI()
 
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(game.router, prefix="/api", tags=["Game"])
 app.include_router(tasks.router, prefix="/api", tags=["Tasks"])
+app.include_router(referral.router, prefix="/api", tags=["Referral"])
 
 @app.on_event("startup")
 async def startup_event():

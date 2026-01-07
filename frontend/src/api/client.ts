@@ -5,7 +5,8 @@ import type {
   TaskClaimResponse,
   DailyRewardClaimResponse,
   CoinsResponse,
-} from "../types"; // Adjust path as needed
+  ReferralResponse,
+} from "../types";
 
 const apiClient = axios.create({
   // If you are using Docker/Vite proxy, this might be "/api"
@@ -75,6 +76,31 @@ export const api = {
 
   getUserCoins: async (userId: string): Promise<CoinsResponse> => {
     const response = await apiClient.get(`/tasks/${userId}/coins`);
+    return response.data;
+  },
+
+  // --- NEW REFERRAL ENDPOINTS ---
+  getReferralInfo: async (userId: number): Promise<ReferralResponse> => {
+    const response = await apiClient.get(`/referral/?user_id=${userId}`);
+    return response.data;
+  },
+
+  processReferral: async (
+    referrerCode: string,
+    newUserTelegramId: string,
+    firstName: string,
+    lastName?: string,
+    username?: string,
+  ) => {
+    const response = await apiClient.post("/referral/process", null, {
+      params: {
+        referrer_code: referrerCode,
+        new_user_id: newUserTelegramId,
+        first_name: firstName,
+        last_name: lastName,
+        username: username,
+      },
+    });
     return response.data;
   },
 };

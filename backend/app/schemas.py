@@ -9,6 +9,23 @@ class UserData(BaseModel):
     last_name: Optional[str] = None
     is_premium: Optional[bool] = False
 
+# --- Referral Schemas ---
+class ReferralInfo(BaseModel):
+    referral_code: str
+    link: str
+
+class FriendInfo(BaseModel):
+    id: int
+    name: str  # Using first_name from UserData or username
+    level: int
+    earned: int  # Coins earned from this referral
+    avatar: str  # Emoji or avatar identifier
+
+class ReferralResponse(BaseModel):
+    referral_info: ReferralInfo
+    friends: List[FriendInfo]
+    total_earned: int
+
 # --- Game State ---
 # Using snake_case for fields to match Python/Redis conventions easily
 # and relying on Pydantic to handle serialization

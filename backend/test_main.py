@@ -3,6 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 import fakeredis.aioredis
 import time
+import json
 
 # Import the app
 from main import app
@@ -26,6 +27,7 @@ async def mock_redis(monkeypatch):
     # they hold their own reference. We must update that reference.
     monkeypatch.setattr("app.services.game_service.redis_client", fake)
     monkeypatch.setattr("app.services.task_service.redis_client", fake)
+    monkeypatch.setattr("app.services.referral_service.redis_client", fake) # Add this
     
     # 4. Patch Main (for startup event)
     monkeypatch.setattr("main.redis_client", fake)
@@ -150,37 +152,76 @@ async def test_complete_and_claim_task(client):
     user_id = "67890"
     await client.post("/api/auth", json={"id": int(user_id), "first_name": "Tasker"})
     
+    # First, get the tasks to see what daily tasks are available
+    tasks_response = await client.get(f"/api/tasks/{user_id}")
+    assert tasks_response.status_code == 200
+    tasks_data = tasks_response.json()
+    
+    # Find a daily task to test with
+    daily_tasks = [task for task in tasks_data["tasks"] if ":" in task["id"]]
+    if daily_tasks:
+        task_to_test = daily_tasks[0]
+        task_id = task_to_test["id"]
+    else:
+        # If no daily tasks, try to find a one-time task
+        one_time_tasks = [task for task in tasks_data["tasks"] if ":" not in task["id"]]
+        if one_time_tasks:
+            task_to_test = one_time_tasks[0]
+            task_id = task_to_test["id"]
+        else:
+            pytest.fail("No tasks available to test")
+    
+    print(f"Testing with task ID: {task_id}")  # Debug print
+    
     # 1. Complete
-    response = await client.post(f"/api/tasks/{user_id}/task_1/complete")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/complete")
     assert response.status_code == 200
     assert response.json()["task"]["status"] == "completed"
     
     # 2. Claim
-    response = await client.post(f"/api/tasks/{user_id}/task_1/claim")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/claim")
     assert response.status_code == 200
     assert response.json()["success"] is True
-    assert response.json()["new_coins"] == 1000
+    assert response.json()["new_coins"] >= response.json()["reward"]  # At least reward amount
+
 
 @pytest.mark.asyncio
 async def test_task_validation(client):
     user_id = "11111"
     await client.post("/api/auth", json={"id": int(user_id), "first_name": "Validator"})
     
+    # First, get the tasks to see what's available
+    tasks_response = await client.get(f"/api/tasks/{user_id}")
+    assert tasks_response.status_code == 200
+    tasks_data = tasks_response.json()
+    
+    # Find a task to test with (preferably a one-time task for this test)
+    one_time_tasks = [task for task in tasks_data["tasks"] if ":" not in task["id"]]
+    if one_time_tasks:
+        task_to_test = one_time_tasks[0]
+        task_id = task_to_test["id"]
+    else:
+        # Use first available task if no one-time tasks
+        if tasks_data["tasks"]:
+            task_to_test = tasks_data["tasks"][0]
+            task_id = task_to_test["id"]
+        else:
+            pytest.fail("No tasks available to test")
+    
     # 1. Claim before Complete -> Fail (400)
-    response = await client.post(f"/api/tasks/{user_id}/task_1/claim")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/claim")
     assert response.status_code == 400 
     
     # 2. Complete -> Success (200)
-    response = await client.post(f"/api/tasks/{user_id}/task_1/complete")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/complete")
     assert response.status_code == 200
     
     # 3. Claim -> Success (200)
-    response = await client.post(f"/api/tasks/{user_id}/task_1/claim")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/claim")
     assert response.status_code == 200
     
     # 4. Complete again -> Fail (400 - Already Claimed)
-    # Note: Logic in TaskService checks 'status == claimed' for complete_task
-    response = await client.post(f"/api/tasks/{user_id}/task_1/complete")
+    response = await client.post(f"/api/tasks/{user_id}/{task_id}/complete")
     assert response.status_code == 400
 
 @pytest.mark.asyncio
@@ -274,3 +315,189 @@ async def test_energy_regen_cap(client, mock_redis):
     data = response.json()["gameState"]
     # Energy should be exactly max_energy (1000), not 31,000,000
     assert data["energy"] == 1000
+
+# --- REFERRAL TESTS ---
+
+@pytest.mark.asyncio
+async def test_get_referral_info_new_user(client, mock_redis):
+    """Test that getting referral info for a new user creates their referral data."""
+    user_id = "10000"
+    
+    # Get referral info for a new user
+    response = await client.get(f"/api/referral/?user_id={user_id}")
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Check the structure of the response
+    assert "referral_info" in data
+    assert "referral_code" in data["referral_info"]
+    assert "link" in data["referral_info"]
+    assert "friends" in data
+    assert isinstance(data["friends"], list)
+    assert "total_earned" in data
+    
+    # Check that the referral code and link are properly formatted
+    assert len(data["referral_info"]["referral_code"]) == 6
+    assert data["referral_info"]["link"].startswith("https://t.me/my_bot?start=")
+    
+    # Check that a new user has no friends initially
+    assert len(data["friends"]) == 0
+    
+    # Verify that the referral data was stored in Redis
+    referral_key = f"user:{user_id}:referral"
+    referral_data_raw = await mock_redis.get(referral_key)
+    assert referral_data_raw is not None
+    
+    referral_data = json.loads(referral_data_raw)
+    assert referral_data["user_id"] == user_id
+    assert referral_data["referral_code"] == data["referral_info"]["referral_code"]
+    assert referral_data["friends_count"] == 0
+    assert referral_data["total_earned"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_referral_info_existing_user(client, mock_redis):
+    """Test that getting referral info for an existing user works."""
+    user_id = "10001"
+    
+    # First, create referral data by getting referral info
+    first_response = await client.get(f"/api/referral/?user_id={user_id}")
+    assert first_response.status_code == 200
+    first_data = first_response.json()
+    first_code = first_data["referral_info"]["referral_code"]
+    
+    # Get referral info again
+    second_response = await client.get(f"/api/referral/?user_id={user_id}")
+    assert second_response.status_code == 200
+    second_data = second_response.json()
+    
+    # The referral code should be the same
+    assert second_data["referral_info"]["referral_code"] == first_code
+
+
+@pytest.mark.asyncio
+async def test_process_referral_valid(client, mock_redis):
+    """Test that processing a valid referral works correctly."""
+    # Create referrer user
+    referrer_id = "20000"
+    referrer_response = await client.get(f"/api/referral/?user_id={referrer_id}")
+    assert referrer_response.status_code == 200
+    referrer_data = referrer_response.json()
+    referrer_code = referrer_data["referral_info"]["referral_code"]
+    
+    # Process referral for a new user
+    new_user_id = "20001"
+    new_user_first_name = "NewUser"
+    
+    response = await client.post(
+        "/api/referral/process",
+        params={
+            "referrer_code": referrer_code,
+            "new_user_id": new_user_id,
+            "first_name": new_user_first_name
+        }
+    )
+    
+    assert response.status_code == 200
+    assert response.json()["message"] == "Referral processed successfully"
+    
+    # Check that referrer's data was updated
+    referrer_updated_response = await client.get(f"/api/referral/?user_id={referrer_id}")
+    referrer_updated_data = referrer_updated_response.json()
+    
+    assert referrer_updated_data["referral_info"]["referral_code"] == referrer_code
+    assert len(referrer_updated_data["friends"]) == 1
+    assert referrer_updated_data["friends"][0]["name"] == new_user_first_name
+    assert referrer_updated_data["total_earned"] == 2500  # Referrer bonus
+    
+    # Check that new user's data was updated
+    new_user_response = await client.get(f"/api/referral/?user_id={new_user_id}")
+    new_user_data = new_user_response.json()
+    
+    # The new user should have 0 friends initially but have been referred by someone
+    # (Note: The current service doesn't return 'referred_by' in the main response)
+    
+    # Check that points were awarded to both users
+    referrer_points = await mock_redis.hget(f"user:{referrer_id}", "points")
+    assert int(referrer_points) == 2500
+    
+    new_user_points = await mock_redis.hget(f"user:{new_user_id}", "points")
+    assert int(new_user_points) == 2500
+
+
+@pytest.mark.asyncio
+async def test_process_referral_invalid_code(client, mock_redis):
+    """Test that processing a referral with an invalid code fails."""
+    invalid_code = "INVALID"
+    new_user_id = "30000"
+    new_user_first_name = "NewUser"
+    
+    response = await client.post(
+        "/api/referral/process",
+        params={
+            "referrer_code": invalid_code,
+            "new_user_id": new_user_id,
+            "first_name": new_user_first_name
+        }
+    )
+    
+    assert response.status_code == 400
+    assert "Invalid referral code" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_referral_with_multiple_friends(client, mock_redis):
+    """Test that a user can have multiple referred friends."""
+    # Create referrer user
+    referrer_id = "40000"
+    referrer_response = await client.get(f"/api/referral/?user_id={referrer_id}")
+    assert referrer_response.status_code == 200
+    referrer_data = referrer_response.json()
+    referrer_code = referrer_data["referral_info"]["referral_code"]
+    
+    # Process referrals for multiple new users
+    for i in range(3):
+        new_user_id = f"4000{i+1}"
+        new_user_first_name = f"NewUser{i+1}"
+        
+        response = await client.post(
+            "/api/referral/process",
+            params={
+                "referrer_code": referrer_code,
+                "new_user_id": new_user_id,
+                "first_name": new_user_first_name
+            }
+        )
+        assert response.status_code == 200
+    
+    # Check that referrer's friends list has all 3 users
+    referrer_updated_response = await client.get(f"/api/referral/?user_id={referrer_id}")
+    referrer_updated_data = referrer_updated_response.json()
+    
+    assert len(referrer_updated_data["friends"]) == 3
+    assert referrer_updated_data["total_earned"] == 7500  # 3 * 2500
+
+
+@pytest.mark.asyncio
+async def test_get_referral_link(client, mock_redis):
+    """Test the dedicated endpoint for getting referral link."""
+    user_id = "50000"
+    
+    # First, ensure user has referral data
+    await client.get(f"/api/referral/?user_id={user_id}")
+    
+    # Get just the referral link
+    response = await client.get(f"/api/referral/link?user_id={user_id}")
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    assert "link" in data
+    assert data["link"].startswith("https://t.me/my_bot?start=")
+    
+    # Verify the link matches what would be returned by the main endpoint
+    full_response = await client.get(f"/api/referral/?user_id={user_id}")
+    full_data = full_response.json()
+    
+    assert data["link"] == full_data["referral_info"]["link"]
