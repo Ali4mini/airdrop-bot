@@ -190,7 +190,7 @@ export const Home = () => {
             {/* COIN */}
             <div className="flex-grow flex items-center justify-center mb-8 relative w-full pointer-events-none">
               <div className="pointer-events-auto">
-                <Coin onTap={handleTap} />
+                <Coin onTap={handleTap} tapValue={tapValue} />
               </div>
 
               <AnimatePresence>
