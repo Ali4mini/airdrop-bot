@@ -5,7 +5,6 @@ import { useTelegram } from "../hooks/useTelegram";
 import { api } from "../api/client";
 import { Coin } from "../components/Coin";
 import { Boost } from "./Boost";
-import { useUIStore } from "../store/uiStore";
 
 export const Home = () => {
   const [currentView, setCurrentView] = useState<"game" | "boost">("game");
@@ -37,19 +36,6 @@ export const Home = () => {
   // [FIX START] Add pointsRef
   const pointsRef = useRef(points);
   // [FIX END]
-
-  const { openLevelUp } = useUIStore();
-
-  // Track previous level to detect changes
-  const prevLevelRef = useRef<string>(levelName);
-
-  useEffect(() => {
-    // If level changed AND it's not the initial load
-    if (prevLevelRef.current && prevLevelRef.current !== levelName) {
-      openLevelUp(levelName);
-    }
-    prevLevelRef.current = levelName;
-  }, [levelName, openLevelUp]);
 
   // Keep refs in sync with real state
   useEffect(() => {
