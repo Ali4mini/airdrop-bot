@@ -2,42 +2,54 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect } from "react";
 import confetti from "canvas-confetti";
 import { useUIStore } from "../store/uiStore";
+import { Zap, Hand, X } from "lucide-react";
 
 export const LevelUpModal = () => {
   const { levelUp, closeLevelUp } = useUIStore();
 
   useEffect(() => {
     if (levelUp.isOpen) {
-      // 1. Trigger Vibration
+      // 1. Haptic Feedback
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
       }
 
-      // 2. Trigger Confetti Cannon
-      const duration = 3000;
-      const end = Date.now() + duration;
-
-      const frame = () => {
-        // Launch confetti from left corner
-        confetti({
-          particleCount: 2,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0, y: 0.8 },
-          colors: ["#fbbf24", "#a855f7", "#ffffff"], // Gold, Purple, White
-        });
-        // Launch confetti from right corner
-        confetti({
-          particleCount: 2,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1, y: 0.8 },
-          colors: ["#fbbf24", "#a855f7", "#ffffff"],
-        });
-
-        if (Date.now() < end) requestAnimationFrame(frame);
+      // 2. Continuous Confetti Shower
+      const duration = 2500;
+      const animationEnd = Date.now() + duration;
+      const defaults = {
+        startVelocity: 30,
+        spread: 360,
+        ticks: 60,
+        zIndex: 150,
       };
-      frame();
+
+      const randomInRange = (min: number, max: number) =>
+        Math.random() * (max - min) + min;
+
+      const interval: any = setInterval(function () {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+          colors: ["#FFD700", "#FFA500", "#ffffff"], // Gold & White
+        });
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+          colors: ["#FFD700", "#FFA500", "#ffffff"],
+        });
+      }, 250);
+
+      return () => clearInterval(interval);
     }
   }, [levelUp.isOpen]);
 
@@ -48,48 +60,120 @@ export const LevelUpModal = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
-          onClick={closeLevelUp} // Close when clicking background
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl"
         >
+          {/* THE CARD */}
           <motion.div
-            initial={{ scale: 0.5, y: 100, rotateX: 20 }}
-            animate={{ scale: 1, y: 0, rotateX: 0 }}
-            exit={{ scale: 0.5, y: 100, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking card
-            className="w-full max-w-xs bg-[#1a1a1a] border-2 border-yellow-500/50 rounded-[2rem] p-8 flex flex-col items-center text-center shadow-[0_0_60px_rgba(234,179,8,0.3)] relative overflow-hidden"
+            initial={{ scale: 0.8, opacity: 0, rotateX: 20 }}
+            animate={{ scale: 1, opacity: 1, rotateX: 0 }}
+            exit={{ scale: 0.8, opacity: 0, rotateX: -20 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="relative w-full max-w-sm bg-[#111] rounded-[32px] overflow-hidden border border-yellow-500/30 shadow-[0_0_80px_rgba(234,179,8,0.2)]"
           >
-            {/* Background Glow Effect */}
-            <div className="absolute inset-0 bg-gradient-to-b from-yellow-500/10 to-transparent pointer-events-none" />
+            {/* 1. ANIMATED SUNBURST BACKGROUND */}
+            <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-20 pointer-events-none">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                className="w-full h-full bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,rgba(234,179,8,0.5)_30deg,transparent_60deg,rgba(234,179,8,0.5)_90deg,transparent_120deg,rgba(234,179,8,0.5)_150deg,transparent_180deg)]"
+              />
+            </div>
 
-            {/* Animated Trophy Icon */}
-            <motion.div
-              animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="text-8xl mb-6 filter drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]"
-            >
-              🏆
-            </motion.div>
+            {/* 2. CARD CONTENT */}
+            <div className="relative z-10 p-8 flex flex-col items-center">
+              {/* Close Button (Subtle) */}
+              <button
+                onClick={closeLevelUp}
+                className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
 
-            <h2 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-2 drop-shadow-md">
-              Level Up!
-            </h2>
+              {/* LEVEL HEADER */}
+              <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-yellow-500 font-bold tracking-widest text-xs uppercase mb-6 bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20"
+              >
+                Level Up Achieved
+              </motion.div>
 
-            <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent my-4" />
+              {/* MAIN ICON */}
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-yellow-500 blur-[60px] opacity-40 animate-pulse" />
+                <motion.div
+                  animate={{
+                    y: [0, -10, 0],
+                    rotate: [0, 5, -5, 0],
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="text-9xl drop-shadow-2xl relative z-10"
+                >
+                  🏆
+                </motion.div>
+              </div>
 
-            <p className="text-gray-400 text-sm mb-8 font-medium">
-              You have reached the <br />
-              <span className="text-2xl text-yellow-400 font-black block mt-2 drop-shadow-sm">
-                {levelUp.levelName} League
-              </span>
-            </p>
+              {/* RANK NAME */}
+              <motion.h2
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.3, type: "spring" }}
+                className="text-4xl font-black text-white italic tracking-tighter mb-1 text-center bg-gradient-to-br from-white via-yellow-200 to-yellow-600 bg-clip-text text-transparent"
+              >
+                {levelUp.levelName}
+              </motion.h2>
 
-            <button
-              onClick={closeLevelUp}
-              className="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 text-black font-black text-lg px-8 py-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
-            >
-              AWESOME!
-            </button>
+              <p className="text-gray-400 text-sm font-medium mb-8">
+                League Unlocked
+              </p>
+
+              {/* STATS UPGRADE GRID */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="w-full grid grid-cols-2 gap-3 mb-8"
+              >
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
+                  <div className="bg-purple-500/20 p-2 rounded-full mb-2">
+                    <Zap size={16} className="text-purple-400" />
+                  </div>
+                  <span className="text-[10px] text-gray-400 uppercase font-bold">
+                    Energy Limit
+                  </span>
+                  <span className="text-white font-bold text-lg">+500</span>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
+                  <div className="bg-green-500/20 p-2 rounded-full mb-2">
+                    <Hand size={16} className="text-green-400" />
+                  </div>
+                  <span className="text-[10px] text-gray-400 uppercase font-bold">
+                    Tap Value
+                  </span>
+                  <span className="text-white font-bold text-lg">+1</span>
+                </div>
+              </motion.div>
+
+              {/* ACTION BUTTON */}
+              <motion.button
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                onClick={closeLevelUp}
+                whileTap={{ scale: 0.95 }}
+                className="w-full relative overflow-hidden group bg-yellow-500 hover:bg-yellow-400 text-black font-black text-lg py-4 rounded-2xl shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all"
+              >
+                <span className="relative z-10">CONTINUE</span>
+
+                {/* Shine Effect on Button */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-500 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12" />
+              </motion.button>
+            </div>
           </motion.div>
         </motion.div>
       )}
