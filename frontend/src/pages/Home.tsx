@@ -249,16 +249,6 @@ export const Home = () => {
               </AnimatePresence>
             </div>
 
-            {/* TEMP DEV BUTTON */}
-            <div className="w-full max-w-sm px-6 mb-2">
-              <button
-                onClick={handleBuyTestUpgrade}
-                className="w-full py-2 bg-blue-500/20 border border-blue-500/50 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-blue-500/40 transition-colors"
-              >
-                [Dev] Buy +1k Profit (500 Coins)
-              </button>
-            </div>
-
             {/* BOTTOM NAV */}
             <div className="w-full max-w-sm px-6 mb-8 mt-auto">
               <div className="flex justify-between items-end mb-2">
