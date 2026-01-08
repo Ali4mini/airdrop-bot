@@ -38,6 +38,8 @@ class GameState(BaseModel):
     energyLimitLevel: int
     rechargeSpeedLevel: int
     tapBotLevel: int
+    profitPerHour: int
+    lastPassiveSync: int
 
 class UpgradePayload(BaseModel):
     user_id: int
@@ -77,3 +79,13 @@ class TapResponse(BaseModel):
     multitapLevel: int
     energyLimitLevel: int
     rechargeSpeedLevel: int
+
+# A generic payload for actions that only need the user_id
+class UserPayload(BaseModel):
+    user_id: int
+
+# Response for the passive sync
+class PassiveEarnResponse(BaseModel):
+    earned: int
+    points: int
+    profit_per_hour: int

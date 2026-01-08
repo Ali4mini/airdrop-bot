@@ -13,10 +13,20 @@ class GameService:
     async def create_user_if_not_exists(user: UserData):
         user_key = GameService.get_user_key(user.id)
         if not await redis_client.exists(user_key):
+            current_time = int(time.time())
             initial_state = {
-                "points": 0, "energy": 1000, "max_energy": 1000, "level": 1,
-                "multitap_level": 1, "energy_limit_level": 1, "recharge_speed_level": 1,
-                "tap_bot_level": 0, "last_sync_time": int(time.time())
+                "points": 0, 
+                "energy": 1000, 
+                "max_energy": 1000, 
+                "level": 1,
+                "multitap_level": 1, 
+                "energy_limit_level": 1, 
+                "recharge_speed_level": 1,
+                "tap_bot_level": 0, 
+                "last_sync_time": current_time,
+                # --- PASSIVE EARN FIELDS ---
+                "profit_per_hour": 0,
+                "last_passive_sync": current_time
             }
             await redis_client.hset(user_key, mapping=initial_state)
 
@@ -36,13 +46,14 @@ class GameService:
             "multitapLevel": int(data.get("multitap_level", 1)),
             "energyLimitLevel": int(data.get("energy_limit_level", 1)),
             "rechargeSpeedLevel": int(data.get("recharge_speed_level", 1)),
-            "tapBotLevel": int(data.get("tap_bot_level", 0))
+            "tapBotLevel": int(data.get("tap_bot_level", 0)),
+            # New Fields
+            "profitPerHour": int(data.get("profit_per_hour", 0)),
+            "lastPassiveSync": int(data.get("last_passive_sync", int(time.time())))
         }
 
     @staticmethod
     async def process_tap(user_id: int, taps: int):
-        # [FIX] Defensive check: If taps is negative or zero, just return current state
-        # (Though Pydantic should catch this, it's good to be safe)
         if taps < 0:
             return await GameService.get_user_state(user_id)
 
@@ -62,33 +73,26 @@ class GameService:
         recharge_level = int(data.get("recharge_speed_level", 1))
         current_level = int(data.get("level", 1))
 
-        # 2. Calculate Passive Regen
+        # 2. Calculate Passive Energy Regen
         regen_rate = 1 + (recharge_level - 1)
         seconds_passed = current_time - last_sync
         
-        # [FIX] Cap the energy at max_energy. 
-        # Even if 1 year passed, they cannot have 1,000,000 energy.
         energy_with_regen = min(max_energy, stored_energy + (seconds_passed * regen_rate))
         
         # 3. Calculate Cost per Tap
-        # Determine base points based on user level
         base_val = 1
         for l in LEVELS: 
             if l['lvl'] == current_level: 
                 base_val = l['val']
 
         points_per_tap = base_val + (multitap_level - 1)
-        energy_cost_per_tap = points_per_tap # Assumption: 1 Point costs 1 Energy
+        energy_cost_per_tap = points_per_tap 
         
-        # 4. [FIX] The "Infinite Money" Glitch Fix
-        # Calculate how many taps the user can AFFORD with their current energy
         if energy_cost_per_tap > 0:
             max_affordable_taps = energy_with_regen // energy_cost_per_tap
         else:
-            max_affordable_taps = taps # Safety catch if cost is somehow 0
+            max_affordable_taps = taps 
 
-        # We only process the valid amount of taps. 
-        # If user requests 100 but only affords 10, we process 10.
         actual_taps = min(taps, max_affordable_taps)
         
         points_gained = actual_taps * points_per_tap
@@ -106,6 +110,8 @@ class GameService:
         await pipe.execute()
         
         # 6. Return Data
+        # Re-fetch specific updated fields to ensure accuracy
+        # But for speed, we can calculate local state to return
         final_points = int(data.get("points", 0)) + points_gained
         
         return {
@@ -116,12 +122,18 @@ class GameService:
             "energyLimitLevel": int(data.get("energy_limit_level", 1)),
             "rechargeSpeedLevel": recharge_level,
             "level": current_level,
-            # Optional: Return this to let frontend know not all taps were counted
-            "processed_taps": actual_taps 
+            "processed_taps": actual_taps,
+            # Include passive fields in response to match schema if needed, 
+            # or frontend can use cached values
+            "profitPerHour": int(data.get("profit_per_hour", 0)),
+            "lastPassiveSync": int(data.get("last_passive_sync", current_time))
         }
 
     @staticmethod
     async def buy_upgrade(user_id: int, upgrade_type: str):
+        # NOTE: This handles "Tap" upgrades. 
+        # If you add mining cards, create a separate method or expand this one.
+        
         user_key = GameService.get_user_key(user_id)
         data = await redis_client.hgetall(user_key)
         if not data: raise HTTPException(404, "User not found")
@@ -138,7 +150,6 @@ class GameService:
         db_field = field_map[upgrade_type]
         current_level = int(data.get(db_field, 1))
         
-        # Calculate Cost
         config = UPGRADE_CONFIG.get(upgrade_type)
         if not config: raise HTTPException(400, "Config missing")
         
@@ -154,14 +165,12 @@ class GameService:
         pipe.hset(user_key, "points", new_points)
         pipe.hset(user_key, db_field, new_level)
         
-        new_max = int(data.get("max_energy", 1000))
         if upgrade_type == "energy_limit":
             new_max = 1000 + ((new_level - 1) * 500)
             pipe.hset(user_key, "max_energy", new_max)
             
         await pipe.execute()
         
-        # We need to return specific keys to pass the tests (snake_case vs camelCase mix)
         updated_data = await redis_client.hgetall(user_key)
         
         return {
@@ -170,5 +179,83 @@ class GameService:
             "multitap_level": int(updated_data.get("multitap_level", 1)),
             "energy_limit_level": int(updated_data.get("energy_limit_level", 1)),
             "recharge_speed_level": int(updated_data.get("recharge_speed_level", 1)),
-            "maxEnergy": int(updated_data.get("max_energy"))
+            "maxEnergy": int(updated_data.get("max_energy")),
+             # New Fields
+            "profitPerHour": int(data.get("profit_per_hour", 0)),
+            "lastPassiveSync": int(data.get("last_passive_sync", int(time.time())))
         }
+
+    # ------------------------------------------------------------------
+    # NEW FEATURE: Passive Income Sync
+    # ------------------------------------------------------------------
+    @staticmethod
+    async def sync_passive_income(user_id: int):
+        user_key = GameService.get_user_key(user_id)
+        data = await redis_client.hgetall(user_key)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        current_time = int(time.time())
+        last_passive_sync = int(data.get("last_passive_sync", current_time))
+        profit_per_hour = int(data.get("profit_per_hour", 0))
+
+        # 1. Calculate Time Difference
+        seconds_passed = current_time - last_passive_sync
+
+        # 2. Config: Max offline time (3 hours)
+        MAX_OFFLINE_SECONDS = 3 * 3600
+        eligible_seconds = min(seconds_passed, MAX_OFFLINE_SECONDS)
+
+        # 3. Calculate Earned Amount
+        # Avoid division by zero issues
+        earned_coins = 0
+        if profit_per_hour > 0 and eligible_seconds > 0:
+            earned_coins = int((profit_per_hour / 3600) * eligible_seconds)
+
+        # 4. Update DB
+        pipe = redis_client.pipeline()
+        if earned_coins > 0:
+            pipe.hincrby(user_key, "points", earned_coins)
+        
+        # Always update the sync time, even if 0 earned, 
+        # so the timer resets for the next window.
+        pipe.hset(user_key, "last_passive_sync", current_time)
+        await pipe.execute()
+
+        new_total_points = int(data.get("points", 0)) + earned_coins
+
+        return {
+            "earned": earned_coins,
+            "points": new_total_points,
+            "profit_per_hour": profit_per_hour
+        }
+
+    # ------------------------------------------------------------------
+    # HELPER: How to buy a "Mining Card" (Increases Profit)
+    # ------------------------------------------------------------------
+    # You will need to create an API endpoint for this like:
+    # @router.post("/buy-card") calling this method.
+    @staticmethod
+    async def buy_mining_upgrade(user_id: int, cost: int, profit_increase: int):
+        """
+        Buying a card increases profit_per_hour.
+        CRITICAL: We must sync existing earnings BEFORE changing the rate.
+        """
+        # 1. Claim pending earnings first
+        await GameService.sync_passive_income(user_id)
+        
+        user_key = GameService.get_user_key(user_id)
+        
+        # 2. Check Balance
+        current_points = int(await redis_client.hget(user_key, "points") or 0)
+        if current_points < cost:
+            raise HTTPException(400, "Insufficient funds")
+
+        # 3. Apply Purchase
+        pipe = redis_client.pipeline()
+        pipe.hincrby(user_key, "points", -cost)
+        pipe.hincrby(user_key, "profit_per_hour", profit_increase)
+        await pipe.execute()
+
+        return await GameService.get_user_state(user_id)

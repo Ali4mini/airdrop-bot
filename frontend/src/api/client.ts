@@ -103,4 +103,25 @@ export const api = {
     });
     return response.data;
   },
+  syncPassive: async (userId: number) => {
+    const response = await apiClient.post(`/sync-passive`, {
+      user_id: userId,
+    });
+    // Map snake_case from backend to camelCase for frontend
+    return {
+      earned: response.data.earned,
+      points: response.data.points,
+      profitPerHour: response.data.profit_per_hour, // Important mapping
+    };
+  },
+  // NEW METHOD
+  buyMiningUpgrade: async (userId: number, cost: number, profit: number) => {
+    const response = await apiClient.post(`/buy-card`, {
+      user_id: userId,
+      cost: cost,
+      profit_increase: profit,
+    });
+    // This returns the full user state, which setGameState can handle
+    return response.data;
+  },
 };

@@ -501,3 +501,147 @@ async def test_get_referral_link(client, mock_redis):
     full_data = full_response.json()
     
     assert data["link"] == full_data["referral_info"]["link"]
+
+# --- PASSIVE EARN TESTS ---
+
+@pytest.mark.asyncio
+async def test_passive_fields_initialization(client, mock_redis):
+    """Test that a new user starts with 0 profit and correct sync time."""
+    user_id = 55555
+    payload = {"id": user_id, "first_name": "NewEarner"}
+    
+    # 1. Create User
+    response = await client.post("/api/auth", json=payload)
+    assert response.status_code == 200
+    
+    # 2. Check Redis directly
+    data = await mock_redis.hgetall(f"user:{user_id}")
+    assert int(data["profit_per_hour"]) == 0
+    
+    # Sync time should be very close to current time
+    now = int(time.time())
+    assert now - 2 <= int(data["last_passive_sync"]) <= now + 2
+
+@pytest.mark.asyncio
+async def test_passive_sync_calculation(client, mock_redis):
+    """Test standard calculation: 1 hour passed with 3600 profit/hr."""
+    user_id = 66666
+    
+    # Setup: 
+    # Profit = 3600/hr (1 coin per second)
+    # Time passed = 100 seconds
+    now = int(time.time())
+    past_time = now - 100
+    
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 1000,
+        "profit_per_hour": 3600, 
+        "last_passive_sync": past_time,
+        # Required defaults
+        "energy": 1000, "max_energy": 1000, "level": 1
+    })
+
+    # Action: Sync
+    response = await client.post("/api/sync-passive", json={"user_id": user_id})
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Expectation: 1 coin/sec * 100 seconds = 100 coins
+    assert data["earned"] == 100
+    assert data["points"] == 1100 # 1000 + 100
+    
+    # Verify Redis updated the timestamp
+    stored_time = await mock_redis.hget(f"user:{user_id}", "last_passive_sync")
+    assert int(stored_time) >= now
+
+@pytest.mark.asyncio
+async def test_passive_sync_cap(client, mock_redis):
+    """Test the 3-hour limit cap."""
+    user_id = 77777
+    
+    # Setup:
+    # Profit = 3600/hr (1 coin per second)
+    # Time passed = 10 hours (36000 seconds)
+    now = int(time.time())
+    past_time = now - (10 * 3600) 
+    
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 0,
+        "profit_per_hour": 3600,
+        "last_passive_sync": past_time,
+        "energy": 1000, "max_energy": 1000, "level": 1
+    })
+
+    # Action: Sync
+    response = await client.post("/api/sync-passive", json={"user_id": user_id})
+    data = response.json()
+    
+    # Expectation: Should only pay for 3 hours (3 * 3600 = 10800 coins)
+    # NOT 10 hours (36000)
+    assert data["earned"] == 10800 
+
+@pytest.mark.asyncio
+async def test_buy_mining_card_integration(client, mock_redis):
+    """
+    CRITICAL TEST: 
+    Ensures that when buying a card, we sync pending earnings 
+    calculated at the OLD rate before applying the NEW rate.
+    """
+    user_id = 88888
+    
+    # Setup:
+    # Profit = 3600/hr (1 coin/sec)
+    # Time passed = 1 hour (3600 seconds) -> User has 3600 pending coins
+    # Current Balance = 5000
+    now = int(time.time())
+    past_time = now - 3600 
+    
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 5000,
+        "profit_per_hour": 3600,
+        "last_passive_sync": past_time,
+        "energy": 1000, "max_energy": 1000, "level": 1
+    })
+    
+    # Payload: Buy a card that Costs 1000 and adds +1000 Profit
+    payload = {
+        "user_id": user_id,
+        "cost": 1000,
+        "profit_increase": 1000
+    }
+    
+    # Action
+    response = await client.post("/api/buy-card", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    
+    # --- MATH CHECK ---
+    # 1. Passive Earn Sync (Old Rate): 1 hour * 3600 = +3600 coins
+    # 2. Intermediate Balance: 5000 (Start) + 3600 (Earned) = 8600
+    # 3. Buy Card: 8600 - 1000 (Cost) = 7600
+    
+    assert data["points"] == 7600
+    
+    # 4. Check new Profit rate (3600 + 1000)
+    assert data["profitPerHour"] == 4600 # Snake_case mapping check might apply here
+    
+    # 5. Check Redis to ensure rate is updated
+    redis_profit = await mock_redis.hget(f"user:{user_id}", "profit_per_hour")
+    assert int(redis_profit) == 4600
+
+@pytest.mark.asyncio
+async def test_buy_mining_card_insufficient_funds(client, mock_redis):
+    user_id = 99999
+    
+    await mock_redis.hset(f"user:{user_id}", mapping={
+        "points": 100, # Too poor
+        "profit_per_hour": 0,
+        "last_passive_sync": int(time.time()),
+        "energy": 1000
+    })
+    
+    payload = {"user_id": user_id, "cost": 500, "profit_increase": 100}
+    response = await client.post("/api/buy-card", json=payload)
+    
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Insufficient funds"

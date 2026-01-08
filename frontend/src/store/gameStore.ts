@@ -3,17 +3,21 @@ import type { GameState } from "../types";
 import { getLevelInfo } from "../config/levels";
 
 interface GameStore extends GameState {
+  // --- New Field ---
+  profitPerHour: number;
+
   // Actions
   incrementPoints: () => void;
   decrementEnergy: () => void;
   restoreEnergy: (amount: number) => void;
   setGameState: (state: any) => void;
+  tickPassivePoints: () => void;
 
   // UI Helpers (Calculated)
   levelName: string;
-  tapValue: number; // The total value (Base + Boost)
-  energyRegen: number; // The total regen (Base + Boost)
-  progress: number; // 0-100 for the progress bar
+  tapValue: number;
+  energyRegen: number;
+  progress: number;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -23,11 +27,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   maxEnergy: 1000,
   level: 1,
 
-  // Upgrade Levels (Default to 1)
+  // Upgrade Levels
   multitapLevel: 1,
   energyLimitLevel: 1,
   rechargeSpeedLevel: 1,
   tapBotLevel: 0,
+
+  // --- New Field Default ---
+  profitPerHour: 0,
 
   // --- UI Helper Defaults ---
   levelName: "Bronze",
@@ -38,17 +45,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // --- Logic: Tap Coin ---
   incrementPoints: () =>
     set((state) => {
-      // 1. Get Base Stats from current League
       const currentInfo = getLevelInfo(state.points);
-
-      // 2. Calculate Total Power
-      // Formula: League Base + (Multitap Level - 1)
-      // Example: Silver(2) + Multitap Lvl 3 = 2 + (3-1) = 4
       const pointsPerTap = currentInfo.tapValue + (state.multitapLevel - 1);
-
       const newPoints = state.points + pointsPerTap;
-
-      // 3. Check if we leveled up with this tap
       const nextInfo = getLevelInfo(newPoints);
 
       return {
@@ -56,7 +55,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         level: nextInfo.level,
         levelName: nextInfo.name,
         progress: nextInfo.progress,
-        // Update display value immediately
         tapValue: nextInfo.tapValue + (state.multitapLevel - 1),
       };
     }),
@@ -64,10 +62,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // --- Logic: Consume Energy ---
   decrementEnergy: () =>
     set((state) => {
-      // 1. Calculate cost (Must match pointsPerTap logic exactly)
       const currentInfo = getLevelInfo(state.points);
       const costPerTap = currentInfo.tapValue + (state.multitapLevel - 1);
-
       return {
         energy: Math.max(0, state.energy - costPerTap),
       };
@@ -76,7 +72,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // --- Logic: Passive Recharge ---
   restoreEnergy: (amount) =>
     set((state) => {
-      // 'amount' here is usually passed from the interval in Home.tsx
       if (state.energy >= state.maxEnergy) return {};
       return {
         energy: Math.min(state.maxEnergy, state.energy + amount),
@@ -88,10 +83,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => {
       /* 
          MAPPING LOGIC:
-         Handles both JavaScript camelCase and Python snake_case
+         Handles snake_case (Backend DB) -> camelCase (Frontend)
       */
       const points = newState.points ?? state.points;
       const energy = newState.energy ?? state.energy;
+
+      // NEW: Map profit per hour
+      const profitPerHour =
+        newState.profitPerHour ??
+        newState.profit_per_hour ??
+        state.profitPerHour ??
+        0;
 
       const maxEnergy =
         newState.maxEnergy ?? newState.max_energy ?? state.maxEnergy;
@@ -114,11 +116,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const tapBotLevel =
         newState.tapBotLevel ?? newState.tap_bot_level ?? state.tapBotLevel;
 
-      // Recalculate League/Progress info based on the synced points
+      // Recalculate League/Progress
       const info = getLevelInfo(points);
 
       return {
-        ...state, // Keep existing state
+        ...state,
         points,
         energy,
         maxEnergy,
@@ -126,18 +128,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
         energyLimitLevel,
         rechargeSpeedLevel,
         tapBotLevel,
+        profitPerHour, // Store the value
 
         level: info.level,
         levelName: info.name,
         progress: info.progress,
 
-        /* 
-           CALCULATED VALUES FOR UI:
-           1. tapValue = League Base + Multitap Boost
-           2. energyRegen = League Base + Recharge Boost
-        */
         tapValue: info.tapValue + (multitapLevel - 1),
         energyRegen: info.energyRegen + (rechargeSpeedLevel - 1),
+      };
+    }),
+  // We use a small internal accumulator to handle fractional gains
+  // (e.g., if you earn 100/hr, that is 0.027 per second. We need to track that decimal)
+  internalDecimalPoints: 0,
+
+  tickPassivePoints: () =>
+    set((state) => {
+      if (state.profitPerHour === 0) return {};
+
+      // Calculate coins per second (profit / 3600)
+      // Since we run this tick every 1000ms (1s), we add exactly this amount
+      const coinsPerSecond = state.profitPerHour / 3600;
+
+      // We just add to points.
+      // Note: In a real app, you might want to store 'points' as a float internally
+      // and Math.floor() it in the UI, but adding to the integer is fine for simple games.
+      return {
+        points: state.points + coinsPerSecond,
       };
     }),
 }));
