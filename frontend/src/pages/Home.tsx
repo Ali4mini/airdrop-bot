@@ -5,7 +5,7 @@ import { useTelegram } from "../hooks/useTelegram";
 import { api } from "../api/client";
 import { Coin } from "../components/Coin";
 import { Boost } from "./Boost";
-import { AnimatedCounter } from "../components/AnimatedCounter";
+import { ModernTicker } from "../components/ModernTicker";
 
 export const Home = () => {
   const [currentView, setCurrentView] = useState<"game" | "boost">("game");
@@ -201,15 +201,30 @@ export const Home = () => {
               <StatBox label="Recharge" value={`+${energyRegen}/s`} isEnergy />
             </div>
 
-            {/* BALANCE (ANIMATED) */}
-            <div className="flex items-center gap-3 mb-8 drop-shadow-2xl">
-              <span className="text-3xl">🦄</span>
-              <motion.div
-                animate={balanceControls}
-                className="text-5xl font-black font-mono tracking-tighter flex"
-              >
-                <AnimatedCounter value={points} />
-              </motion.div>
+            {/* BALANCE */}
+            <div className="flex flex-col items-center mb-8 z-20">
+              {/* Label above numbers */}
+              <span className="text-xs font-bold text-yellow-500/80 uppercase tracking-[0.2em] mb-2 drop-shadow-md">
+                Total Balance
+              </span>
+
+              <div className="flex items-center gap-3">
+                {/* Unicorn / Icon */}
+                <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
+                  🦄
+                </span>
+
+                {/* THE MODERN TICKER CONTAINER */}
+                <motion.div animate={balanceControls} className="relative">
+                  {/* 1. The Text Effect (Gradient + Shadow) */}
+                  <div className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-gray-400 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]">
+                    <ModernTicker value={points} />
+                  </div>
+
+                  {/* 2. Optional: Shine/Reflection Effect overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 animate-shine pointer-events-none" />
+                </motion.div>
+              </div>
             </div>
 
             {/* CLICK AREA */}
