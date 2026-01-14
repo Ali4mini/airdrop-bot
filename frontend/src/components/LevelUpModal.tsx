@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 import { useUIStore } from "../store/uiStore";
 import { Zap, Hand, X } from "lucide-react";
@@ -7,14 +7,27 @@ import { Zap, Hand, X } from "lucide-react";
 export const LevelUpModal = () => {
   const { levelUp, closeLevelUp } = useUIStore();
 
+  // ADD THIS REF: Prevents double-firing of confetti/haptics
+  const hasPlayedAnimation = useRef(false);
+
+  // Reset the ref when modal closes
   useEffect(() => {
-    if (levelUp.isOpen) {
+    if (!levelUp.isOpen) {
+      hasPlayedAnimation.current = false;
+    }
+  }, [levelUp.isOpen]);
+
+  useEffect(() => {
+    // Only run if open AND hasn't played yet
+    if (levelUp.isOpen && !hasPlayedAnimation.current) {
+      hasPlayedAnimation.current = true; // Mark as played
+
       // 1. Haptic Feedback
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
       }
 
-      // 2. Continuous Confetti Shower
+      // 2. Confetti Logic
       const duration = 2500;
       const animationEnd = Date.now() + duration;
       const defaults = {
@@ -35,11 +48,13 @@ export const LevelUpModal = () => {
         }
 
         const particleCount = 50 * (timeLeft / duration);
+
+        // Fire confetti
         confetti({
           ...defaults,
           particleCount,
           origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-          colors: ["#FFD700", "#FFA500", "#ffffff"], // Gold & White
+          colors: ["#FFD700", "#FFA500", "#ffffff"],
         });
         confetti({
           ...defaults,
@@ -52,7 +67,6 @@ export const LevelUpModal = () => {
       return () => clearInterval(interval);
     }
   }, [levelUp.isOpen]);
-
   return (
     <AnimatePresence>
       {levelUp.isOpen && (

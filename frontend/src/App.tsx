@@ -1,40 +1,59 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useTelegram } from "./hooks/useTelegram";
+
+// Components
 import { Header } from "./components/Header";
 import { Navigation } from "./components/Navigation";
 import { Background } from "./components/Background";
+import { Notification } from "./components/Notifications";
+import { LevelUpModal } from "./components/LevelUpModal";
+import { PassiveModal } from "./components/PassiveModal";
+
+// Pages
 import { Home } from "./pages/Home";
 import { Tasks } from "./pages/Tasks";
 import { Friends } from "./pages/Friends";
-import { Notification } from "./components/Notifications";
-import { LevelUpModal } from "./components/LevelUpModal";
 import { Wallet } from "./pages/Wallet";
 
+// Stores & API
 import { useGameStore } from "./store/gameStore";
 import { useUIStore } from "./store/uiStore";
 import { api } from "./api/client";
-import { PassiveModal } from "./components/PassiveModal";
 
 function AppContent() {
   const { user, expand } = useTelegram();
-  const { levelName, setGameState } = useGameStore();
+  const { level, levelName, setGameState } = useGameStore();
   const { openLevelUp } = useUIStore();
-  // --- PASSIVE EARN LOGIC ---
-  const [passiveMod, setPassiveMod] = useState({ isOpen: false, earned: 0 });
-  const hasSynced = useRef(false);
 
+  // --- PASSIVE EARN STATE ---
+  const [passiveMod, setPassiveMod] = useState({ isOpen: false, earned: 0 });
+  const hasSyncedPassive = useRef(false);
+
+  // --- LEVEL UP LOGIC REFS ---
+  // Track the highest level seen this session so we don't re-trigger for the same level
+  const lastLevelRef = useRef<number>(level);
+  // Gate to prevent modals firing during initial data load
+  const isGameReady = useRef(false);
+
+  // 1. TELEGRAM SETUP
   useEffect(() => {
-    if (user?.id && !hasSynced.current) {
-      hasSynced.current = true;
+    expand();
+  }, [expand]);
+
+  // 2. PASSIVE INCOME SYNC (Runs Once on Mount)
+  useEffect(() => {
+    // Only run if we have a user and haven't synced yet
+    if (user?.id && !hasSyncedPassive.current) {
+      hasSyncedPassive.current = true;
 
       api
         .syncPassive(user.id)
         .then((data) => {
-          // Update the store with the new balance and profit/hr
+          // Update the store with the new points/profit info
           setGameState(data);
 
-          // If they earned money, show modal
+          // If the user earned coins while offline, show the modal
           if (data.earned > 0) {
             setPassiveMod({ isOpen: true, earned: data.earned });
           }
@@ -43,66 +62,57 @@ function AppContent() {
     }
   }, [user?.id, setGameState]);
 
-  const closePassiveModal = () => {
-    setPassiveMod({ ...passiveMod, isOpen: false });
-  };
-
-  // --- LEVEL UP LOGIC FIX ---
-  const prevLevelRef = useRef<string>(levelName);
-
-  // This ref acts as a gate. We close the gate initially.
-  // We only open it after we are sure the initial API sync is done.
-  const isGameReady = useRef(false);
-
+  // 3. SET GAME READY (Delays Level Up checks)
   useEffect(() => {
-    // 1. If the level changed
-    if (prevLevelRef.current !== levelName) {
-      // 2. Only trigger modal if the game is "Ready"
-      // This ignores the initial "Bronze -> Gold" jump when loading the app.
-      if (isGameReady.current) {
-        openLevelUp(levelName);
-      }
-    }
-
-    // 3. Always update the ref
-    prevLevelRef.current = levelName;
-  }, [levelName, openLevelUp]);
-
-  // 4. Set Game to Ready after a short delay
-  // This gives the API time to load the user's real level without triggering the modal.
-  useEffect(() => {
+    // We give the app 1 second to fetch initial API data.
+    // During this time, the LevelUp modal is disabled.
     const timer = setTimeout(() => {
       isGameReady.current = true;
-      // Force sync the ref to the current level so we don't trigger
-      // if the API loads exactly at the same moment the timer fires.
-      prevLevelRef.current = levelName;
-    }, 1000); // 1 second buffer is usually enough for the initial API response
+      // Sync the ref to the current level (loaded from API)
+      lastLevelRef.current = level;
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
-  // --------------------------
+  }, [level]); // Dependency on level ensures we have the latest before 'Ready'
 
+  // 4. LEVEL UP TRIGGER
   useEffect(() => {
-    expand();
-  }, []);
+    // Stop if game is still loading
+    if (!isGameReady.current) return;
+
+    // Trigger ONLY if the new level is higher than the last seen level
+    if (level > lastLevelRef.current) {
+      lastLevelRef.current = level; // Update ref first
+      openLevelUp(levelName);
+    }
+  }, [level, levelName, openLevelUp]);
+
+  const closePassiveModal = () => {
+    setPassiveMod((prev) => ({ ...prev, isOpen: false }));
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-transparent text-white font-sans">
+    <div className="flex flex-col h-screen bg-transparent text-white font-sans overflow-hidden">
+      {/* GLOBAL LAYOUT ELEMENTS */}
       <Background />
       <Notification />
+
+      {/* MODALS */}
       <LevelUpModal />
       <PassiveModal
         isOpen={passiveMod.isOpen}
         earned={passiveMod.earned}
         onClose={closePassiveModal}
       />
+
       <Header />
 
-      <div className="flex-1 overflow-y-auto pt-24 pb-32 px-4 z-10">
+      {/* SCROLLABLE CONTENT AREA */}
+      <div className="flex-1 overflow-y-auto pt-24 pb-32 px-4 z-10 scrollbar-hide">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tasks" element={<Tasks />} />
-          <Route path="/friends" element={<Friends userId={user.id} />} />
+          <Route path="/friends" element={<Friends userId={user?.id || 0} />} />
           <Route path="/wallet" element={<Wallet />} />
         </Routes>
       </div>
