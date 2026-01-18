@@ -1,9 +1,11 @@
 import { useTelegram } from "../hooks/useTelegram";
 import { Wallet, Settings, Star, User } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 export const Header = () => {
   const { user } = useTelegram();
+  const navigate = useNavigate();
 
   // Fallback initials if no photo
   const initials = user?.first_name
@@ -61,7 +63,10 @@ export const Header = () => {
         {/* RIGHT: Actions */}
         <div className="flex items-center gap-2">
           {/* Wallet Capsule (Visual Only for now) */}
-          <button className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-3 py-1.5 transition-colors group">
+          <button
+            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-3 py-1.5 transition-colors group"
+            onClick={() => navigate("/wallet")}
+          >
             <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/40 transition-colors">
               <Wallet size={12} className="text-blue-400" />
             </div>
@@ -70,9 +75,9 @@ export const Header = () => {
           </button>
 
           {/* Settings / Menu */}
-          <button className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 transition-colors">
-            <Settings size={18} />
-          </button>
+          {/* <button className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 transition-colors"> */}
+          {/*   <Settings size={18} /> */}
+          {/* </button> */}
         </div>
       </div>
     </motion.header>

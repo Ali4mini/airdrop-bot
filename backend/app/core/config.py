@@ -8,6 +8,9 @@ UPGRADE_CONFIG = {
 }
 
 LEVELS = [
+    {"min": 100000, "val": 10, "lvl": 9},
+    {"min": 50000, "val": 15, "lvl": 8},
+    {"min": 30000, "val": 12, "lvl": 7},
     {"min": 10000, "val": 10, "lvl": 6},
     {"min": 5000,  "val": 5,  "lvl": 5},
     {"min": 1000,  "val": 4,  "lvl": 4},
@@ -21,6 +24,7 @@ TASKS_DB = [
     {"id": "task_2", "title": "Follow us on X", "icon": "🐦", "reward": 1500, "type": "social", "status": "pending"},
     {"id": "task_3", "title": "Watch video", "icon": "📺", "reward": 2000, "type": "watch", "status": "pending"},
     {"id": "task_4", "title": "Invite friends", "icon": "👥", "reward": 5000, "type": "referral", "status": "pending"},
+    {"id": "task_5", "title": "Install MysteryPlay", "icon": "👥", "reward": 7000, "type": "special", "status": "pending"},
 ]
 
 DAILY_REWARDS_DB = [
