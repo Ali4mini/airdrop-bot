@@ -115,6 +115,8 @@ class TaskService:
         
         task["status"] = "completed"
         await redis_client.hset(keys["tasks"], task_id, json.dumps(task))
+
+        redis_client.sadd("users_to_sync", user_id) 
         return task
 
     @staticmethod
@@ -132,6 +134,7 @@ class TaskService:
         await redis_client.hset(keys["tasks"], task_id, json.dumps(task))
         
         new_points = await redis_client.hincrby(keys["user"], "points", task["reward"])
+        redis_client.sadd("users_to_sync", user_id) 
         return task, new_points
 
     @staticmethod
@@ -166,4 +169,5 @@ class TaskService:
             "last_check_in": str(int(time.time()))
         })
         
+        redis_client.sadd("users_to_sync", user_id) 
         return reward, new_points

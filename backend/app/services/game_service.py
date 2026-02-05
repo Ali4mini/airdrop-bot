@@ -107,7 +107,9 @@ class GameService:
             "energy": new_energy,
             "last_sync_time": current_time
         })
+        pipe.sadd("users_to_sync", user_id)
         await pipe.execute()
+
         
         # 6. Return Data
         # Re-fetch specific updated fields to ensure accuracy
@@ -169,6 +171,8 @@ class GameService:
             new_max = 1000 + ((new_level - 1) * 500)
             pipe.hset(user_key, "max_energy", new_max)
             
+
+        pipe.sadd("users_to_sync", user_id)
         await pipe.execute()
         
         updated_data = await redis_client.hgetall(user_key)
@@ -221,6 +225,7 @@ class GameService:
         # Always update the sync time, even if 0 earned, 
         # so the timer resets for the next window.
         pipe.hset(user_key, "last_passive_sync", current_time)
+        pipe.sadd("users_to_sync", user_id)
         await pipe.execute()
 
         new_total_points = int(data.get("points", 0)) + earned_coins
@@ -256,6 +261,8 @@ class GameService:
         pipe = redis_client.pipeline()
         pipe.hincrby(user_key, "points", -cost)
         pipe.hincrby(user_key, "profit_per_hour", profit_increase)
+        
+        pipe.sadd("users_to_sync", user_id)
         await pipe.execute()
 
         return await GameService.get_user_state(user_id)

@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM docker.arvancloud.ir/python:3.13-slim
 
 # 1. Install system dependencies required for the installer
 # We combine these to keep the image size small
