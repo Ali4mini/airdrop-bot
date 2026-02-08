@@ -210,9 +210,10 @@ export const Home = () => {
 
               <div className="flex items-center gap-3">
                 {/* Unicorn / Icon */}
-                <span className="text-4xl filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
-                  🦄
-                </span>
+                <img
+                  src="../../public/1770311369-removebg-preview.png"
+                  className=" w-12  filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+                />
 
                 {/* THE MODERN TICKER CONTAINER */}
                 <motion.div animate={balanceControls} className="relative">
