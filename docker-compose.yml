@@ -20,6 +20,9 @@ services:
     build:
       context: ./frontend
 
+    env_file:
+      - ./frontend/.env
+
 volumes:
   redis_data:
   postgres_data:

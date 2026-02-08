@@ -8,11 +8,11 @@ dependencies = [
     "fakeredis>=2.33.0",
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
-    "psycopg>=3.3.2",
-    "psycopg2[bin]>=2.9.11",
+    "psycopg2-binary==2.9.11",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "python-dotenv>=1.2.1",
     "redis>=7.1.0",
     "uvicorn>=0.40.0",
 ]
+

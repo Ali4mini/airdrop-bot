@@ -1,2 +1,5 @@
 backend/.env
+backend/backend.egg-info/
+backend/build/
+frontend/.env
 __pycache__/

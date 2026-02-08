@@ -8,10 +8,14 @@ import type {
   ReferralResponse,
 } from "../types";
 
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
+console.log("VITE_API_URL: ", VITE_API_URL);
+
 const apiClient = axios.create({
   // If you are using Docker/Vite proxy, this might be "/api"
   // If you are running locally, it is usually port 8000
-  baseURL: "http://localhost:8000/api",
+  baseURL: import.meta.env.VITE_API_URL,
   headers: {
     "Content-Type": "application/json",
   },

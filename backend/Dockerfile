@@ -10,16 +10,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Configure APT to use the proxy, install, then remove the config to keep the image clean
-RUN if [ -n "$PROXY_URL" ]; then \
-        echo "Acquire::http::Proxy \"$PROXY_URL\";" > /etc/apt/apt.conf.d/99proxy; \
-        echo "Acquire::https::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf.d/99proxy; \
-    fi && \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq5 \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -f /etc/apt/apt.conf.d/99proxy
+    && rm -rf /var/lib/apt/lists/* 
 
 # --- Stage 2: Development ---
 FROM base AS development
@@ -27,7 +22,7 @@ FROM base AS development
 # Copy dependency files
 COPY pyproject.toml ./
 # Install all dependencies (including dev ones)
-RUN pip install -i https://mirror-pypi.runflare.com/simple --no-cache-dir .
+RUN pip install  --no-cache-dir .
 
 # Copy the rest of the code
 COPY . .
@@ -44,7 +39,7 @@ USER appuser
 
 # Install only production dependencies
 COPY --chown=appuser:appuser pyproject.toml ./
-RUN pip install -i https://mirror-pypi.runflare.com/simple --no-cache-dir --user .
+RUN pip install  --no-cache-dir --user .
 
 # Copy application code
 COPY --chown=appuser:appuser . .

@@ -1,5 +1,5 @@
 # --- Stage 1: Base (Shared) ---
-FROM node:22-alpine AS base
+FROM docker.arvancloud.ir/node:22-alpine AS base
 WORKDIR /app
 COPY package*.json ./
 
@@ -23,7 +23,7 @@ RUN npm run build
 
 # --- Stage 4: Production (Final Image) ---
 # We use Nginx instead of Node because it is much faster at serving static files
-FROM nginx:stable-alpine AS production
+FROM docker.arvancloud.ir/nginx:stable-alpine AS production
 
 # Copy the static files from the build stage to Nginx
 COPY --from=build /app/dist /usr/share/nginx/html
