@@ -1,0 +1,42 @@
+services:
+  # Dev-only tool
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  postgres:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: portfolio_db
+
+  backend:
+    build:
+      context: ./backend
+      target: development # Targets the dev stage in your Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - TELEGRAM_BOT_TOKEN=your_token_here
+    volumes:
+      - ./backend/:/app
+      - /app/.venv # Protects container venv from being overwritten by host
+
+  frontend:
+    build:
+      target: development
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+    command: npm run dev -- --host 0.0.0.0

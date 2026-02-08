@@ -1,34 +1,56 @@
-FROM docker.arvancloud.ir/python:3.13-slim
+# --- Stage 1: Base ---
+FROM docker.arvancloud.ir/python:3.13-slim AS base
 
-# 1. Install system dependencies required for the installer
-# We combine these to keep the image size small
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+ARG PROXY_URL
 
-# 2. Download and install uv
-# We set the installation directory to /usr/local/bin so it's globally available
-ENV UV_INSTALL_DIR="/usr/local/bin"
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Prevent Python from writing .pyc files and enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# 3. Set working directory
 WORKDIR /app
 
-# 4. Prevent uv from creating a virtual environment inside the container
-# This makes Docker management easier as it installs to system site-packages
-ENV UV_SYSTEM_PYTHON=1
+# Configure APT to use the proxy, install, then remove the config to keep the image clean
+RUN if [ -n "$PROXY_URL" ]; then \
+        echo "Acquire::http::Proxy \"$PROXY_URL\";" > /etc/apt/apt.conf.d/99proxy; \
+        echo "Acquire::https::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf.d/99proxy; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq5 \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apt/apt.conf.d/99proxy
 
-# 5. Copy dependency files first for caching
-COPY pyproject.toml uv.lock* ./
+# --- Stage 2: Development ---
+FROM base AS development
 
-# 6. Install dependencies
-# Using --system because we are inside a container and don't need a venv
-RUN uv pip install -r pyproject.toml
+# Copy dependency files
+COPY pyproject.toml ./
+# Install all dependencies (including dev ones)
+RUN pip install -i https://mirror-pypi.runflare.com/simple --no-cache-dir .
 
-# 7. Copy the rest of the code
+# Copy the rest of the code
 COPY . .
 
-# 8. Run the application
-# We bind to 0.0.0.0 so the container is accessible from outside
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Run with hot-reload enabled
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# --- Stage 3: Production Build ---
+FROM base AS production
+
+# Create a non-root user for security
+RUN useradd -m appuser
+USER appuser
+
+# Install only production dependencies
+COPY --chown=appuser:appuser pyproject.toml ./
+RUN pip install -i https://mirror-pypi.runflare.com/simple --no-cache-dir --user .
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Ensure the local bin is in PATH for the user
+ENV PATH="/home/appuser/.local/bin:${PATH}"
+
+# Run without --reload and with optimized settings
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

@@ -1,0 +1,27 @@
+services:
+  redis:
+    restart: always
+
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+
+  backend:
+    build:
+      target: production # Targets the slim production stage
+    restart: always
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+
+  frontend:
+    build:
+      target: production
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=https://api.yourdomain.com
