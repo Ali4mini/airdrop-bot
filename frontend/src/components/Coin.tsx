@@ -23,7 +23,7 @@ interface Particle {
 export const Coin = ({
   onTap,
   tapValue,
-  logoUrl = "../../public/1770311369-removebg-preview.png",
+  logoUrl = "/assets/1770311369-removebg-preview.png",
 }: CoinProps) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);

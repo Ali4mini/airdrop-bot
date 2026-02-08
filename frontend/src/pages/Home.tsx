@@ -211,7 +211,7 @@ export const Home = () => {
               <div className="flex items-center gap-3">
                 {/* Unicorn / Icon */}
                 <img
-                  src="../../public/1770311369-removebg-preview.png"
+                  src="/assets/1770311369-removebg-preview.png"
                   className=" w-12  filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
                 />
 
