@@ -1,43 +1,47 @@
 import WebApp from "@twa-dev/sdk";
-import type { User } from "../types"; // <--- Import Type
+import { useCallback, useMemo } from "react";
+import type { User } from "../types";
 
 export function useTelegram() {
-  // Try to detect if we are in Telegram
-  // Note: WebApp.initData is empty string if not in Telegram usually
-  const isTelegram = !!WebApp.initData;
+  const isTelegram = useMemo(() => !!WebApp.initData, []);
 
-  const user = isTelegram
-    ? (WebApp.initDataUnsafe.user as User)
-    : {
-        // Mock User for Chrome Development
-        id: 99999999,
-        first_name: "Dev",
-        last_name: "User",
-        username: "dev_user",
-        language_code: "en",
-      };
+  const user = useMemo(() => {
+    return isTelegram
+      ? (WebApp.initDataUnsafe.user as User)
+      : {
+          id: 99999999,
+          first_name: "Dev",
+          last_name: "User",
+          username: "dev_user",
+          language_code: "en",
+        };
+  }, [isTelegram]);
 
-  const close = () => {
+  const close = useCallback(() => {
     if (isTelegram) WebApp.close();
     else console.log("Telegram Close triggered");
-  };
+  }, [isTelegram]);
 
-  const expand = () => {
+  const expand = useCallback(() => {
     if (isTelegram) WebApp.expand();
     else console.log("Telegram Expand triggered");
-  };
+  }, [isTelegram]);
 
-  const hapticFeedback = (type: "light" | "medium" | "heavy" = "light") => {
-    if (isTelegram && WebApp.HapticFeedback) {
-      WebApp.HapticFeedback.impactOccurred(type);
-    }
-  };
+  const hapticFeedback = useCallback(
+    (type: "light" | "medium" | "heavy" = "light") => {
+      if (isTelegram && WebApp.HapticFeedback) {
+        WebApp.HapticFeedback.impactOccurred(type);
+      }
+    },
+    [isTelegram],
+  );
 
   return {
     user,
     close,
     expand,
     isTelegram,
-    hapticFeedback, // You can call this during handleTap!
+    hapticFeedback,
+    WebApp, // Export raw WebApp for advanced settings
   };
 }

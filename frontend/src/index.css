@@ -3,21 +3,27 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  /* Fix for Telegram's variable height issues */
+  --tg-viewport-height: 100vh;
+  --tg-viewport-stable-height: 100vh;
 }
 
+html,
 body {
-  overscroll-behavior: none;
-  /* CHANGE THIS: Make background transparent so the Background.tsx component shows */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%; /* Force full height */
+  overflow: hidden; /* DISABLE SCROLLING */
+  touch-action: none; /* Disable zoom and standard touch gestures */
   background-color: transparent;
-  color: white;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  user-select: none; /* Disable text selection */
+  -webkit-user-select: none;
 }
 
-/* Also ensure the root element takes full height */
 #root {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
 }
 
 /* Helper for safe areas */

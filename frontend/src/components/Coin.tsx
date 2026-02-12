@@ -1,23 +1,9 @@
-import React, { useState } from "react";
-import {
-  motion,
-  useSpring,
-  useMotionValue,
-  useTransform,
-  AnimatePresence,
-} from "framer-motion";
+import React, { useRef, useCallback } from "react";
 
 interface CoinProps {
-  onTap: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onTap: () => void;
   tapValue: number;
   logoUrl?: string;
-}
-
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  value: string;
 }
 
 export const Coin = ({
@@ -25,177 +11,135 @@ export const Coin = ({
   tapValue,
   logoUrl = "/assets/1770311369-removebg-preview.png",
 }: CoinProps) => {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const coinRef = useRef<HTMLDivElement>(null);
 
-  const mouseXSpring = useSpring(x, { stiffness: 300, damping: 20 });
-  const mouseYSpring = useSpring(y, { stiffness: 300, damping: 20 });
+  const spawnParticle = useCallback(
+    (x: number, y: number) => {
+      if (!containerRef.current) return;
+      const el = document.createElement("div");
+      el.innerText = `+${tapValue}`;
+      el.className = "floating-score";
 
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["20deg", "-20deg"]);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-20deg", "20deg"]);
+      const randomX = (Math.random() - 0.5) * 60;
+      el.style.left = `${x + randomX}px`;
+      el.style.top = `${y}px`;
 
-  // This sheen moves across the WHOLE coin (rim + face + logo)
-  const sheenGradient = useTransform(
-    mouseXSpring,
-    [-0.5, 0.5],
-    [
-      "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0) 100%)",
-      "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%)",
-    ],
+      containerRef.current.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    },
+    [tapValue],
   );
 
-  const [particles, setParticles] = useState<Particle[]>([]);
-
-  const handleInteraction = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const tapX = e.clientX - rect.left;
-    const tapY = e.clientY - rect.top;
-
-    const offsetX = tapX / rect.width - 0.5;
-    const offsetY = tapY / rect.height - 0.5;
-    x.set(offsetX);
-    y.set(offsetY);
-
-    setTimeout(() => {
-      x.set(0);
-      y.set(0);
-    }, 100);
-
-    const numParticles = 3;
-    for (let i = 0; i < numParticles; i++) {
-      const particleId = Date.now() + Math.random();
-      setParticles((prev) => [
-        ...prev,
-        {
-          id: particleId,
-          x: tapX + (Math.random() - 0.5) * 40,
-          y: tapY + (Math.random() - 0.5) * 40,
-          value: `+${tapValue}`,
-        },
-      ]);
-      setTimeout(() => {
-        setParticles((prev) => prev.filter((p) => p.id !== particleId));
-      }, 800);
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
     }
-    onTap(e);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    onTap();
+    spawnParticle(x, y);
+
+    if (coinRef.current) {
+      const animations = coinRef.current.getAnimations();
+      animations.forEach((anim) => anim.cancel());
+
+      coinRef.current.animate(
+        [
+          { transform: "scale(1)" },
+          { transform: "scale(0.92)" },
+          { transform: "scale(1)" },
+        ],
+        {
+          duration: 150,
+          easing: "cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+        },
+      );
+    }
   };
 
   return (
-    <div className="relative flex items-center justify-center perspective-1000 group">
-      {/* 1. Background Glow */}
-      <div className="absolute w-64 h-64 bg-amber-500 rounded-full blur-[80px] opacity-40 group-hover:opacity-60 transition-opacity duration-500" />
+    <div
+      ref={containerRef}
+      className="relative p-6 w-full h-full flex items-center justify-center select-none"
+      style={{ touchAction: "none" }}
+    >
+      <style>{`
+        @keyframes floatUp {
+          0% { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-160px) scale(1.6); }
+        }
+        .floating-score {
+          position: absolute;
+          pointer-events: none;
+          color: white;
+          font-size: 2.2rem;
+          font-weight: 900;
+          z-index: 60;
+          text-shadow: 0px 4px 8px rgba(0,0,0,0.5);
+          animation: floatUp 0.8s ease-out forwards;
+          will-change: transform, opacity;
+        }
+      `}</style>
 
-      <motion.div
-        style={{
-          rotateX,
-          rotateY,
-          transformStyle: "preserve-3d",
-        }}
-        whileTap={{ scale: 0.96 }}
-        onPointerDown={handleInteraction}
-        className="relative w-72 h-72 cursor-pointer select-none touch-manipulation z-10"
+      {/* THE ACTUAL COIN */}
+      <div
+        ref={coinRef}
+        onPointerDown={handlePointerDown}
+        className="relative w-full h-full rounded-full cursor-pointer z-10 touch-none shadow-[0_12px_45px_rgba(0,0,0,0.6)]"
       >
-        {/* --- 2. THICK 3D RIM --- */}
-        {/* Darkest outer edge */}
-        <div className="absolute inset-0 rounded-full bg-[#5d2806] shadow-2xl translate-y-2" />
+        {/* Layer 1: The Dark Rim/Edge */}
+        <div className="absolute inset-0 rounded-full bg-[#451a03]" />
 
-        {/* Main Gold Rim (Gradient Light to Dark) */}
-        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-[#fcd34d] via-[#d97706] to-[#78350f] p-[10px]">
-          {/* Inner Groove (Dark Line separating Rim from Face) */}
-          <div className="w-full h-full rounded-full bg-[#451a03] p-[2px] shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
-            {/* --- 3. THE COIN FACE --- */}
-            <div className="w-full h-full rounded-full bg-gradient-to-br from-[#fbbf24] to-[#b45309] relative overflow-hidden flex items-center justify-center">
-              {/* Sunburst Pattern - Now Covers Everything */}
+        {/* Layer 2: The Gold Gradient Rim */}
+        <div className="absolute inset-0 rounded-full bg-gradient-to-b from-[#fcd34d] via-[#d97706] to-[#78350f] p-[5%]">
+          {/* Layer 3: The Inner Rim shadow */}
+          <div className="w-full h-full rounded-full bg-[#451a03] p-[2px] shadow-inner">
+            {/* Layer 4: THE FACE (Texture Area) */}
+            <div className="w-full h-full rounded-full relative overflow-hidden flex items-center justify-center bg-[#fbbf24]">
+              {/* Face Background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#fbbf24] to-[#b45309]" />
+
+              {/* Texture: Sunburst */}
+              <div
+                className="absolute inset-0 opacity-25"
+                style={{
+                  backgroundImage:
+                    "repeating-conic-gradient(from 0deg, transparent 0deg 10deg, #78350f 10deg 20deg)",
+                }}
+              />
+
+              {/* Texture: Noise */}
               <div
                 className="absolute inset-0 opacity-30 mix-blend-overlay"
                 style={{
-                  backgroundImage: `repeating-conic-gradient(from 0deg, transparent 0deg 10deg, #78350F 10deg 20deg)`,
-                }}
-              />
-
-              {/* Grain Texture */}
-              <div
-                className="absolute inset-0 opacity-10 bg-black mix-blend-overlay"
-                style={{
                   backgroundImage:
-                    "url('https://grainy-gradients.vercel.app/noise.svg')",
+                    "url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzjwqonyQAwGbxvQlyo6CgAkFhbaQZ0+QwAAAABJRU5ErkJggg==')",
                 }}
               />
 
-              {/* --- 4. THE LOGO (Embossed Effect) --- */}
-              {/* No wrapper div with shadow! Just the logo. */}
-              <div className="relative w-[55%] h-[55%] z-20">
-                {/* 
-                   A. Drop Shadow (The shadow cast by the raised logo)
-                   Moves down-right
-                */}
+              {/* THE LOGO */}
+              <div className="relative w-[65%] h-[65%] z-20 flex items-center justify-center">
                 <img
                   src={logoUrl}
-                  className="absolute inset-0 w-full h-full object-contain brightness-0 opacity-40 blur-[2px] translate-x-1 translate-y-1"
-                />
-
-                {/* 
-                   B. Highlight Edge (The light hitting the top-left)
-                   Moves up-left, bright white
-                */}
-                <img
-                  src={logoUrl}
-                  className="absolute inset-0 w-full h-full object-contain brightness-200 opacity-50 blur-[1px] -translate-x-[1px] -translate-y-[1px]"
-                />
-
-                {/* 
-                   C. The Actual Logo
-                   Clean, crisp, with a slight internal glow to make it look 3D
-                */}
-                <img
-                  src={logoUrl}
-                  className="relative w-full h-full object-contain drop-shadow-sm"
-                  style={{ filter: "saturate(1.1) brightness(1.05)" }}
+                  className="w-full h-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)]"
+                  style={{ filter: "brightness(1.1) contrast(1.1)" }}
+                  draggable={false}
+                  alt="Token Logo"
                 />
               </div>
 
-              {/* --- 5. GLOBAL SHINE OVERLAY --- */}
-              {/* This makes the logo feel like it's UNDER the glass/finish */}
-              <motion.div
-                className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-80"
-                style={{ background: sheenGradient }}
-              />
-
-              {/* Convex Highlights (Static) */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 via-transparent to-black/30 pointer-events-none" />
+              {/* Surface Gloss/Shine */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/30 via-transparent to-black/20 pointer-events-none rounded-full" />
+              <div className="absolute top-[10%] left-[10%] w-[25%] h-[15%] bg-white/30 blur-xl rounded-full -rotate-45" />
             </div>
           </div>
         </div>
-      </motion.div>
-
-      {/* Particles */}
-      <AnimatePresence>
-        {particles.map((p) => (
-          <motion.div
-            key={p.id}
-            initial={{ opacity: 1, x: p.x, y: p.y, scale: 0.5 }}
-            animate={{ opacity: 0, y: p.y - 100, scale: 1.2 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="absolute pointer-events-none z-30"
-            style={{
-              left: 0,
-              top: 0,
-              transform: `translate(${p.x}px, ${p.y}px)`,
-            }}
-          >
-            <span
-              className="text-3xl font-black text-white drop-shadow-md"
-              style={{ WebkitTextStroke: "1px #d97706" }}
-            >
-              {p.value}
-            </span>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      <style>{`.perspective-1000 { perspective: 1000px; }`}</style>
+      </div>
     </div>
   );
 };
