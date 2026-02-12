@@ -191,7 +191,7 @@ export const Friends = ({ userId }: { userId: number }) => {
       </div>
 
       {/* 4. FIXED BOTTOM ACTIONS */}
-      <div className="fixed bottom-24 left-0 w-full px-4 z-20">
+      <div className="fixed bottom-24 left-0 w-full py-5 px-7 z-20">
         <div className="flex gap-2 max-w-md mx-auto">
           <motion.button
             whileTap={{ scale: 0.95 }}
