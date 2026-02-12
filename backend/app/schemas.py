@@ -1,5 +1,7 @@
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional, List
+
 
 # --- User ---
 class UserData(BaseModel):
@@ -9,22 +11,25 @@ class UserData(BaseModel):
     last_name: Optional[str] = None
     is_premium: Optional[bool] = False
 
-# --- Referral Schemas ---
+
+class FriendInfo(BaseModel):
+    user_id: str
+    first_name: str
+    earned: int
+    joined_at: int
+
+
 class ReferralInfo(BaseModel):
     referral_code: str
     link: str
 
-class FriendInfo(BaseModel):
-    id: int
-    name: str  # Using first_name from UserData or username
-    level: int
-    earned: int  # Coins earned from this referral
-    avatar: str  # Emoji or avatar identifier
 
 class ReferralResponse(BaseModel):
     referral_info: ReferralInfo
     friends: List[FriendInfo]
     total_earned: int
+    friends_count: int
+
 
 # --- Game State ---
 # Using snake_case for fields to match Python/Redis conventions easily
@@ -41,9 +46,11 @@ class GameState(BaseModel):
     profitPerHour: int
     lastPassiveSync: int
 
+
 class UpgradePayload(BaseModel):
     user_id: int
-    upgrade_type: str 
+    upgrade_type: str
+
 
 # --- Tasks ---
 class Task(BaseModel):
@@ -54,10 +61,12 @@ class Task(BaseModel):
     status: str
     type: str
 
+
 class DailyReward(BaseModel):
     day: int
     reward: int
     is_claimed: bool
+
 
 class UserTasksResponse(BaseModel):
     daily_rewards: List[DailyReward]
@@ -66,10 +75,12 @@ class UserTasksResponse(BaseModel):
     last_check_in: Optional[str] = None
     coins: int
 
+
 # --- Payloads ---
 class TapPayload(BaseModel):
     user_id: int
-    taps: int = Field(..., gt=0, le=1000) # insure the value is not negative
+    taps: int = Field(..., gt=0, le=1000)  # insure the value is not negative
+
 
 class TapResponse(BaseModel):
     points: int
@@ -80,9 +91,11 @@ class TapResponse(BaseModel):
     energyLimitLevel: int
     rechargeSpeedLevel: int
 
+
 # A generic payload for actions that only need the user_id
 class UserPayload(BaseModel):
     user_id: int
+
 
 # Response for the passive sync
 class PassiveEarnResponse(BaseModel):
