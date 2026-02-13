@@ -10,8 +10,8 @@ logging.basicConfig(
 )
 
 # 2. Get environment variables (Set these in your deployment)
-TOKEN = os.getenv("TELEGRMA_BOT_TOKEN", "")
-WEB_APP_URL = os.getenv("WEB_APP_URL", "")
+TOKEN = "8216355265:AAE-pACZIbAU2BrO63zclK584low7w-ZGmE"
+WEB_APP_URL = "https://parallax-airdrop.xyz"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
