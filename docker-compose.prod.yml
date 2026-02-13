@@ -23,3 +23,10 @@ services:
     restart: always
     ports:
       - "80:80"
+
+
+  bot:
+    restart: always
+    environment: 
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - WEB_APP_URL="https://parallax-airdrop.xyz"
