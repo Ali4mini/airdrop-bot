@@ -5,9 +5,9 @@ services:
   postgres:
     restart: always
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: "airdrop"
+      POSTGRES_PASSWORD:  "airdrop"
+      POSTGRES_DB:   "airdrop"
 
   backend:
     build:
@@ -22,7 +22,7 @@ services:
       target: production
     restart: always
     ports:
-      - "80:80"
+      - "8901:80"
 
 
   bot:
