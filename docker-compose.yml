@@ -24,6 +24,8 @@ services:
       - ./frontend/.env
 
   bot:
+    build: 
+      context: ./bot
     restart: always
     environment: 
       - TELEGRAM_BOT_TOKEN="8216355265:AAE-pACZIbAU2BrO63zclK584low7w-ZGmE"
