@@ -35,7 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_text = (
         f"Hi {user_name}! 👋\n\n"
-        f"Welcome to **[App Name]**.\n"
+        f"Welcome to **Parallax**.\n"
         f"Tap the button below to start farming points and earn your airdrop! 🪂"
     )
 
