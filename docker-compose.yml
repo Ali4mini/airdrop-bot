@@ -23,6 +23,12 @@ services:
     env_file:
       - ./frontend/.env
 
+  bot:
+    restart: always
+    environment: 
+      - TELEGRAM_BOT_TOKEN="8216355265:AAE-pACZIbAU2BrO63zclK584low7w-ZGmE"
+      - WEB_APP_URL="https://parallax-airdrop.xyz"
+
 volumes:
   redis_data:
   postgres_data:
